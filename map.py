@@ -17,6 +17,6 @@ class Map(dict):
                 continue
 
             if isinstance(self[key], Map):
-                self[key].apply(func)
+                self[key].apply(func, ignored=ignored)
             else:
                 self[key] = func(self[key])

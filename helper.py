@@ -1,8 +1,6 @@
-import csv
 import os
 
 import numpy as np
-import pandas as pd
 import torch
 
 def get_tensor(data, dtype=None, requires_grad=False, sparse=False, use_cuda=True):
@@ -37,7 +35,3 @@ def get_zeros(*shape, **kwargs):
 
 def get_eye(n):
     return get_tensor(np.eye(n))
-
-def get_embeddings(path):
-    df = pd.read_csv(path, sep=' ', keep_default_na=False, header=None, index_col=False, encoding='utf8', quoting=csv.QUOTE_NONE).values
-    return np.asarray(df[:, 1:301], dtype='float32')
