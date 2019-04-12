@@ -35,3 +35,11 @@ def get_zeros(*shape, **kwargs):
 
 def get_eye(n):
     return get_tensor(np.eye(n))
+
+def counter_enumerate(iterable, *args, interval=1000, **kwargs):
+    for i, item in enumerate(iterable, *args, **kwargs):
+        yield i, item
+        if i % interval == 0:
+            print(f'\r{i}', end='')
+            sys.stdout.flush()
+    print('\nFinished enumeration')
