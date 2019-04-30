@@ -1,6 +1,7 @@
 import os
 import functools
-from collections import OrderedDict, Callable, Hashable
+from collections import OrderedDict
+from collections.abc import Callable, Hashable
 
 import numpy as np
 import torch
@@ -42,13 +43,18 @@ def get_zeros(*shape, **kwargs):
 def get_eye(n):
     return get_tensor(np.eye(n))
 
-def _counter_enumerate(iterable, *args, interval=1000, **kwargs):
+def _counter_enumerate(iterable, *args, max_size=0, interval=1000, **kwargs):
+    total = 0
     for i, item in enumerate(iterable, *args, **kwargs):
         yield i, item
-        if i % interval == 0:
-            print(f'\r{i}', end='')
+        total += 1
+        if total % interval == 0:
+            print(f'\r{total}', end='')
             sys.stdout.flush()
-    print('\nFinished enumeration')
+        if max_size and total == max_size:
+            print(f'\rReached max size', end='')
+            break
+    print(f'\nFinished enumeration of size {total}')
 
 counter = _counter_enumerate
 

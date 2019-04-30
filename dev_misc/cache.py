@@ -59,9 +59,6 @@ def cache(full=True):
 def clear_cache():
     _Cache.clear_all()
 
-def norm(x): # A shorthand.
-    return torch.nn.functional.normalize(x, dim=-1)
-
 class StructuredCache:
     
     def __init__(self):
