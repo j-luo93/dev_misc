@@ -5,8 +5,6 @@ from helper import (
                     get_eye,
                     counter,
                     freeze,
-                    cache,
-                    clear_cache,
                     norm)
 from logger import (
                     create_logger,
@@ -14,6 +12,8 @@ from logger import (
 from map import Map
 from structured_probe import (
                                 sc,
-                                clear_cache,
-                                register_cache,
-                                get_cache)
+                                sc_clear_cache,
+                                sc_register_cache,
+                                sc_get_cache,
+                                cache,
+                                clear_cache)
