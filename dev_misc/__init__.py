@@ -4,7 +4,8 @@ from .helper import (
                     get_zeros,
                     get_eye,
                     counter,
-                    freeze)
+                    freeze,
+                    sort_all)
 from .logger import (
                     create_logger,
                     log_this)

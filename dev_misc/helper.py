@@ -64,3 +64,19 @@ def freeze(mod):
     for m in mod.children():
         freeze(m)
 
+def sort_all(anchor, *others):
+    '''
+    Sort everything (``anchor`` and ``others``) in this based on the lengths of ``anchor``. 
+    '''
+    # Check everything is an numpy array.
+    for a in [anchor] + others:
+        assert isinstance(a, np.ndarray)
+    #  Check everything has the same length in the first dimension.
+    l = len(anchor)
+    for o in others:
+        assert len(o) == l
+    # Sort by length.
+    lens = np.asarray([len(x) for x in anchor])
+    inds = np.argsort(lens)[::-1]
+    # Return everything after sorting.
+    return [anchor[inds]] + [o[inds] for o in others]
