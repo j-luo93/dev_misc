@@ -69,7 +69,7 @@ def sort_all(anchor, *others):
     Sort everything (``anchor`` and ``others``) in this based on the lengths of ``anchor``. 
     '''
     # Check everything is an numpy array.
-    for a in [anchor] + others:
+    for a in (anchor, ) + others:
         assert isinstance(a, np.ndarray)
     #  Check everything has the same length in the first dimension.
     l = len(anchor)
