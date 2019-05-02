@@ -1,7 +1,4 @@
 import os
-import functools
-from collections import OrderedDict
-from collections.abc import Callable, Hashable
 
 import numpy as np
 import torch
@@ -10,8 +7,10 @@ def get_tensor(data, dtype=None, requires_grad=False, use_cuda=True):
     use_cuda = os.environ.get('CUDA_VISIBLE_DEVICES', False) and use_cuda # NOTE only use cuda when it's not overriden and there is a device available
 
     # If data is a tensor already, move to gpu if use_cuda
-    if use_cuda and isinstance(data, torch.Tensor):
-        return data.cuda()
+    if isinstance(data, torch.Tensor):
+        if use_cuda:
+            return data.cuda()
+        return data
 
     if dtype is None: # NOTE infer dtype
         dtype = 'f'
@@ -76,7 +75,7 @@ def sort_all(anchor, *others):
     for o in others:
         assert len(o) == l
     # Sort by length.
-    lens = np.asarray([len(x) for x in anchor])
+    lens = np.asarray([len(x) for x in anchor], dtype='int64')
     inds = np.argsort(lens)[::-1]
     # Return everything after sorting.
-    return [anchor[inds]] + [o[inds] for o in others]
+    return [lens[inds]] + [anchor[inds]] + [o[inds] for o in others]

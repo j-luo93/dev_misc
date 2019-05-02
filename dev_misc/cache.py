@@ -1,4 +1,6 @@
-from collections import defaultdict
+import functools
+from collections import OrderedDict, defaultdict
+from collections.abc import Callable, Hashable
 
 from hrr.utils.map import Map
 

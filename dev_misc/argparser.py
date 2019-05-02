@@ -9,6 +9,8 @@ import torch
 
 from .map import Map
 
+######################################## Get config from predefined config classes ########################################
+
 _CONFIGS = dict()
 def register_cfg(cls):
     global _CONFIGS
@@ -20,6 +22,8 @@ def register_cfg(cls):
 def get_cfg(name):
     global _CONFIGS
     return _CONFIGS[name]
+    
+######################################## Commands and Argparser ########################################
 
 def _get_log_dir(args):
     while True:
@@ -145,80 +149,5 @@ class ArgParser(object):
             args.log_dir = _get_log_dir(args)
         else:
             args.log_dir = None
-        return args
+        return Map(**vars(args))
         
-######################################## parse_args method ########################################
-
-def _check_args(args):
-    assert args.loss_mode in ['embedding', 'distance', 'distance_layerwise', 'embedding_layerwise']
-    if args.gpu is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-
-    if not args.random:
-        random.seed(args.seed)
-        np.random.seed(args.seed)
-        torch.manual_seed(args.seed)
-    
-    def check_monotonic(lst):
-        for x, y in zip(lst[:-1], lst[1:]):
-            assert x <= y
-            
-    check_monotonic(args.cur_pair_ckpts)
-    check_monotonic(args.cur_op_ckpts)
-    check_monotonic(args.cur_layer_ckpts)
-
-def get_default_parser():
-    parser = ArgParser()
-    # global args
-    parser.add_argument('--anneal_ends', type=int, nargs='+', default=[5], help='end of annealing (in epoch)')
-    parser.add_argument('--anneal_schedule', type=str, default='dummy', help='anneal schedule mode')
-    parser.add_argument('--anneal_starts', type=int, nargs='+', default=[0], help='start of annealing (in epoch)')
-    parser.add_argument('--autoencoder_name', '-an', default='fixed-pairs', type=str, help='name of the autoencoder class')
-    parser.add_argument('--basis_size', '-B', type=int, default=100, help='dimensionality of bases')
-    parser.add_argument('--batch_size', '-bs', type=int, default=1280, help='how many words per batch')
-    parser.add_argument('--dropout', type=float, default=0.0, help='dropout rate')
-    parser.add_argument('--gpu', '-g', type=str, help='which gpu to choose')
-    parser.add_argument('--input_size', '-is', type=int, default=300, help='dimensionality of inputs')
-    parser.add_argument('--log_level', default='INFO', type=str, help='log level')
-    parser.add_argument('--loss_mode', type=str, default='embedding', help='loss mode')
-    parser.add_argument('--msg', '-M', default='', type=str, help='message')
-    parser.add_argument('--num_fillers_per_role', '-nf', type=int, default=50, help='number of fillers per role')
-    parser.add_argument('--num_pairs', '-np', type=int, default=2, help='number of role-filler pairs')
-    parser.add_argument('--num_roles', '-nr', type=int, default=2, help='number of roles')
-    parser.add_argument('--pretrained_embedding_path', '-pep', type=str, help='path to pretrained embeddings')
-    parser.add_argument('--random', action='store_true', help='random, ignore seed')
-    parser.add_argument('--seed', type=int, default=1234, help='random seed')
-    parser.add_argument('--track', action='store_true', help='track log_dir so that shell can use it')
-    parser.add_bool_flags('freeze_bases')
-    # args for train
-    train_parser = parser.add_command('train')
-    train_parser.add_argument('--dec_layer_no', type=int, default='-1', help='layer number to approximate as the decoded layer.')
-    train_parser.add_argument('--enc_layer_no', type=int, default='-1', help='layer number to approximate as the encoder layer.')
-    train_parser.add_argument('--hidden_size', type=int, default='300', help='number of hidden units in LSTM')
-    train_parser.add_argument('--include_labels', action='store_true', help='include labels for the stream')
-    train_parser.add_argument('--layer_no', type=int, default='-1', help='layer number to approximate. -1 means all. -2 means nothing at all.')
-    train_parser.add_argument('--lr_init', type=float, default=0.001, help='initial learning rate')
-    train_parser.add_argument('--num_epochs', '-ne', type=int, default=5, help='number of epochs')
-    train_parser.add_argument('--num_layers', '-nl', type=int, default=12, help='number of layers')
-    train_parser.add_argument('--num_ops', '-nop', type=int, default=2, help='number of ops per hrr layer')
-    train_parser.add_argument('--reg_hyper', type=float, default=0.0, help='regularization hyperparameter for orthonormality')
-    train_parser.add_argument('--ent_hyper', type=float, default=0.0, help='regularization hyperparameter for entropy minimization')
-    train_parser.add_argument('--input_role_range', nargs=2, type=int, default=[0, 0], help='role range for input')
-    train_parser.add_argument('--output_role_range', nargs=2, type=int, default=[0, 0], help='role range for output')
-    train_parser.add_argument('--save_all', action='store_true', help='flag to save all models')
-    train_parser.add_argument('--saved_path', '-sp', type=str, help='path to saved states: continue training')
-    train_parser.add_argument('--cur_pair_ckpts', nargs='*', default=[0], type=int, help='curriculum pair ckpts')
-    train_parser.add_argument('--cur_op_ckpts', nargs='*', default=[0], type=int, help='curriculum op ckpts')
-    train_parser.add_argument('--cur_layer_ckpts', nargs='+', default=[0], type=int, help='curriculum layer ckpts')
-    train_parser.add_bool_flags('use_zero_bases', default=True)
-    train_parser.add_bool_flags('use_gumbel', default=False)
-    
-    return parser
-
-def parse_args(parser=None, to_log=True):
-    if parser is None:
-        parser = get_default_parser()
-    args = parser.parse_args(to_log=to_log)
-    _check_args(args)
-
-    return Map(**vars(args)) # NOTE Return a map, not a Namespace.

@@ -1,4 +1,4 @@
-from .test import TestCase
+from .test import TestCase, patch, Mock
 from .helper import (
                     get_tensor,
                     get_zeros,
@@ -17,3 +17,10 @@ from .cache import (
                    sc_get_cache,
                    cache,
                    clear_cache)
+from .argparser import (
+                    ArgParser,
+                    register_cfg,
+                    get_cfg)
+from .tracker import (
+                    Pair,
+                    Tracker)
