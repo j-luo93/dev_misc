@@ -1,6 +1,8 @@
 '''
 Modififed TestCase to handle matrices.
 '''
+import logging
+
 import unittest
 import unittest.mock
 import functools
@@ -12,6 +14,14 @@ from .cache import set_cache
 
 patch = functools.partial(unittest.mock.patch, autospec=True)
 Mock = unittest.mock.MagicMock
+
+def untested(func):
+    
+    def decorated(*args, **kwargs):
+        logging.warning(f'This function {func.__name__} is untested.')
+        return func(*args, **kwargs)
+        
+    return decorated
 
 class TestCase(unittest.TestCase):
 

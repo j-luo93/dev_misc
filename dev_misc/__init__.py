@@ -1,4 +1,8 @@
-from .test import TestCase, patch, Mock
+from .test import (
+                    TestCase, 
+                    patch, 
+                    Mock,
+                    untested)
 from .helper import (
                     get_tensor,
                     get_zeros,
