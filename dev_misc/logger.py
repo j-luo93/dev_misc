@@ -10,7 +10,8 @@ import time
 class LogFormatter(ColoredFormatter):
 
     def __init__(self, color=False):
-        if color:
+        self.colored = color
+        if self.colored:
             fmt = '%(log_color)s%(levelname)s - %(time)s - %(elapsed)s at %(filename)s:%(lineno)d - %(message)s%(reset)s'
         else:
             fmt = '%(levelname)s - %(time)s - %(elapsed)s - %(message)s'
@@ -22,11 +23,20 @@ class LogFormatter(ColoredFormatter):
         if not hasattr(record, 'elapsed'):
             record.elapsed = timedelta(seconds=round(record.created - self.start_time))
             record.time = time.strftime('%x %X')
-            prefix = "%s - %s - %s" % (
-                record.levelname,
-                record.time,
-                record.elapsed
-            )
+            if self.colored:
+                prefix = "%s - %s - %s at %s:%d" % (
+                    record.levelname,
+                    record.time,
+                    record.elapsed,
+                    record.filename,
+                    record.lineno
+                )
+            else:
+                prefix = "%s - %s - %s" % (
+                    record.levelname,
+                    record.time,
+                    record.elapsed
+                )
             message = record.getMessage()
             message = message.replace('\n', '\n' + ' ' * (len(prefix) + 3))
             record.msg = message

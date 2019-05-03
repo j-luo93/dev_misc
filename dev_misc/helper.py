@@ -1,4 +1,6 @@
 import os
+import sys
+import logging
 
 import numpy as np
 import torch
@@ -48,12 +50,12 @@ def _counter_enumerate(iterable, *args, max_size=0, interval=1000, **kwargs):
         yield i, item
         total += 1
         if total % interval == 0:
-            print(f'\r{total}', end='')
+            logging.debug(f'{total}')
             sys.stdout.flush()
         if max_size and total == max_size:
-            print(f'\rReached max size', end='')
+            logging.info(f'Reached max size')
             break
-    print(f'\nFinished enumeration of size {total}')
+    logging.debug(f'Finished enumeration of size {total}')
 
 counter = _counter_enumerate
 

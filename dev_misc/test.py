@@ -8,7 +8,16 @@ import functools
 import numpy as np
 import torch
 
+from .cache import set_cache
+
+patch = functools.partial(unittest.mock.patch, autospec=True)
+Mock = unittest.mock.MagicMock
+
 class TestCase(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        set_cache(False)
 
     def assertMatrixShapeEqual(self, m1, m2):
         self.assertTupleEqual(m1.shape, m2.shape)
@@ -27,5 +36,3 @@ class TestCase(unittest.TestCase):
     def assertProbs(self, probs):
         self.assertMatrixEqual(probs.sum(dim=-1).detach(), torch.ones(*probs.shape[:-1]))
 
-patch = functools.partial(unittest.mock.patch, autospec=True)
-Mock = unittest.mock.MagicMock

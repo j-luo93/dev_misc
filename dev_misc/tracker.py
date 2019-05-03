@@ -40,7 +40,7 @@ class Tracker:
     def next_epoch(self):
         self._epoch += 1
 
-    def update_best(self, score, mode='min'):
+    def update_best(self, score, mode='min', quiet=False):
         if isinstance(score, torch.Tensor):
             assert score.numel() == 1
             score = score.item()
@@ -64,7 +64,7 @@ class Tracker:
         if updated:
             self.best_score = score
             self.best_epoch = self.epoch
-        if self.best_score is not None:
+        if self.best_score is not None and not quiet:
             logging.info('Best score is %.3f at epoch %d' %(self.best_score, self.best_epoch))
         return updated
 

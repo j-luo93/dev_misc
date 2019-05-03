@@ -2,29 +2,65 @@ import functools
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Hashable
 
-from hrr.utils.map import Map
+from .map import Map
 
 '''
 Modified from https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
 First time cache it,
 '''
-class _Cache(object):
+class _SmartCache:
+    
+    def __init__(self, persist=False):
+        self._persist = persist
+        self.clear()
+
+    def clear(self):
+        self._data = dict()
+
+    def __bool__(self):
+        return len(self._data) > 0
+
+    @property
+    def persist(self):
+        return self._persist
+
+    def __setitem__(self, k, v):
+        self._data[k] = v
+
+    def __contains__(self, k):
+        return k in self._data
+
+    def __getitem__(self, k):
+        if k not in self._data:
+            raise KeyError('Not found')
+        return self._data[k]
+
+class _Cache:
 
     CACHED_REPO = list()
-
+    FLAG = True
+        
     @classmethod
     def clear_all(cls):
         for func in _Cache.CACHED_REPO:
-            func._cache = dict()
+            if not func._cache.persist:
+                func._cache.clear()
 
-    def __init__(self, func, full=True):
+    def __init__(self, func, full=True, persist=False):
+        '''
+        If ``full`` is True, caching by arguments is supported.
+        If ``persist`` is True, cache will not be deleted during the same run.
+        '''
         _Cache.CACHED_REPO.append(func)
         self.func = func
         self.full = full
 
-        self.func._cache = dict() # NOTE insert a cache into func
+        self.func._cache = _SmartCache(persist=persist) # NOTE insert a cache into func
 
     def __call__(self, *args, **kwargs):
+        if not _Cache.FLAG:
+            return self.func(*args, **kwargs)
+
         if self.full:
             '''
             Note that only args are used as keys for caching. kwargs are used for computation, but not for caching.
@@ -55,11 +91,15 @@ class _Cache(object):
       '''Support instance methods.'''
       return functools.partial(self.__call__, obj)
 
-def cache(full=True):
-    return lambda func: _Cache(func, full=full)
+def cache(full=True, persist=False):
+    return lambda func: _Cache(func, full=full, persist=persist)
 
 def clear_cache():
     _Cache.clear_all()
+
+def set_cache(flag):
+    assert flag in [True, False]
+    _Cache.FLAG = flag
 
 class StructuredCache:
     
