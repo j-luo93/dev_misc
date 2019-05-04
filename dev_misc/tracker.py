@@ -5,7 +5,22 @@ import torch
 
 from collections import defaultdict, namedtuple
 
-Pair = namedtuple('Pair', ['v', 'w'])
+_Pair = namedtuple('Pair', ['v', 'w'])
+class Pair(_Pair):
+
+    def __add__(self, other):
+        return Pair(self.v + other.v, self.w + other.w)
+
+    @classmethod
+    def merge(cls, *pairs):
+        ret = pairs[0]
+        for pair in pairs[1:]:
+            ret = ret + pair
+        return ret
+
+    @property
+    def mean(self):
+        return self.v / self.w
 
 class Tracker:
 
