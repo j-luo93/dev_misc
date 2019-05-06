@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from prettytable import PrettyTable as pt
 
 import numpy as np
 import torch
@@ -44,10 +45,10 @@ def get_zeros(*shape, **kwargs):
 def get_eye(n):
     return get_tensor(np.eye(n))
 
-def _counter_enumerate(iterable, *args, max_size=0, interval=1000, **kwargs):
+def counter(iterable, *args, max_size=0, interval=1000, **kwargs):
     total = 0
     for i, item in enumerate(iterable, *args, **kwargs):
-        yield i, item
+        yield item
         total += 1
         if total % interval == 0:
             logging.debug(f'{total}')
@@ -56,8 +57,6 @@ def _counter_enumerate(iterable, *args, max_size=0, interval=1000, **kwargs):
             logging.info(f'Reached max size')
             break
     logging.debug(f'Finished enumeration of size {total}')
-
-counter = _counter_enumerate
 
 def freeze(mod):
     for p in mod.parameters():
@@ -81,3 +80,18 @@ def sort_all(anchor, *others):
     inds = np.argsort(lens)[::-1]
     # Return everything after sorting.
     return [lens[inds]] + [anchor[inds]] + [o[inds] for o in others]
+
+def pprint_cols(output, num_cols=2):
+    output = sorted(output)
+    t = pt(header=True, border=True)
+    num_rows = len(output) // num_cols + (len(output) % num_cols > 0)
+    mat = list()
+    for ci in range(num_cols - 1):
+        mat.append(output[ci * num_rows: (ci + 1) * num_rows])
+    num_paddings = num_rows - len(output) % num_rows
+    mat.append(output[(num_cols - 1) * num_rows:] + [''] * num_paddings)
+    mat = np.asarray(mat).T
+    for ri in range(num_rows):
+        t.add_row(mat[ri])
+    t.align = 'l'
+    print(t)
