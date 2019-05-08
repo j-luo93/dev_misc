@@ -1,0 +1,5 @@
+colorlog==3.1.4
+setuptools==40.8.0
+PTable==0.9.2
+numpy==1.16.3
+torch==1.0.0
