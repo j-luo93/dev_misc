@@ -81,3 +81,11 @@ def sort_all(anchor, *others):
     # Return everything after sorting.
     return [lens[inds]] + [anchor[inds]] + [o[inds] for o in others]
 
+def pprint_cols(data, num_cols=4):
+    t = pt()
+    num_rows = len(data) // num_cols + (len(data) % num_cols > 0)
+    for col in range(num_cols - 1):
+        t.add_column(f'Column:{col+1}', data[col * num_rows: (col + 1) * num_rows])
+    t.add_column(f'Column:{num_cols}', data[(num_cols - 1) * num_rows:] + [''] * ((num_rows - len(data) % num_rows) % num_rows))
+    t.align = 'l'
+    print(t)

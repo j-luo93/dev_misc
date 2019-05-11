@@ -38,7 +38,8 @@ class LogFormatter(ColoredFormatter):
                     record.elapsed
                 )
             message = record.getMessage()
-            message = message.replace('\n', '\n' + ' ' * (len(prefix) + 3))
+            if not message.startswith('\n'): # If a message starts with a line break, we will keep the original line break without autoindentation. 
+                message = message.replace('\n', '\n' + ' ' * (len(prefix) + 3))
             record.msg = message
             record.args = () # NOTE avoid evaluating the message again duing getMessage call.
         x = super(LogFormatter, self).format(record)
