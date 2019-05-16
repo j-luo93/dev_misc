@@ -3,24 +3,40 @@ import logging
 import numpy as np
 import torch
 
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
-_Pair = namedtuple('Pair', ['v', 'w'])
-class Pair(_Pair):
+class Metric:
+    
+    def __init__(self, name, value, weight):
+        self.name = name
+        self._v = value
+        self._w = weight
+    
+    def __hash__(self):
+        return hash(self.name)
+    
+    def __eq__(self, other):
+        return self.name == other.name
 
     def __add__(self, other):
-        return Pair(self.v + other.v, self.w + other.w)
-
-    @classmethod
-    def merge(cls, *pairs):
-        ret = pairs[0]
-        for pair in pairs[1:]:
-            ret = ret + pair
-        return ret
+        if isinstance(other, Metric):
+            assert self == other, 'Cannot add two different metrics.'
+            return Metric(self.name, self._v + other._v, self._w + other._w)
+        else:
+            # NOTE This is useful for sum() call. 
+            assert isinstance(other, (int, float)) and other == 0
+            return self
+        
+    def __radd__(self, other):
+        return self.__add__(other)
 
     @property
     def mean(self):
-        return self.v / self.w
+        return self._v / self._w
+    
+    @property
+    def total(self):
+        return self._v
 
 class Tracker:
 
@@ -30,23 +46,20 @@ class Tracker:
         self.clear()
 
     def clear(self):
-        self._values = defaultdict(float)
-        self._weights = defaultdict(float)
+        self._metrics = defaultdict(float)
 
     def clear_best(self):
         self.best_score = None
         self.best_epoch = None
 
-    def update(self, name, pair):
-        self._values[name] += pair.v
-        self._weights[name] += pair.w
+    def update(self, metric):
+        self._metrics[metric.name] += metric
 
     def copy_(self, other):
         self._epoch = other._epoch
         self.best_score = other.best_score
         self.best_epoch = other.best_epoch
-        self._values = other._values
-        self._weights = other._weights
+        self._metrics = other._metrics
 
     @property
     def epoch(self):

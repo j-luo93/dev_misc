@@ -26,5 +26,5 @@ from .argparser import (
                     register_cfg,
                     get_cfg)
 from .tracker import (
-                    Pair,
+                    Metric,
                     Tracker)
