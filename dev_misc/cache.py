@@ -9,10 +9,14 @@ _CACHE = dict()
 _USE_CACHE = True
 
 def cache(full=True, persist=False):
+    global _USE_CACHE
 
     def descriptor(func):
         func_sig = signature(func)
         def decorator(self, *args, **kwargs):
+            if not _USE_CACHE:
+                return func(self, *args, **kwargs)
+
             bound = func_sig.bind(self, *args, **kwargs)
             bound.apply_defaults()
             arg_key = frozenset(bound.arguments.items())
