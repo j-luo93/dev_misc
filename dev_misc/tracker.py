@@ -7,13 +7,17 @@ from collections import defaultdict
 
 class Metric:
     
-    def __init__(self, name, value, weight):
+    def __init__(self, name, value, weight, report_mean=True):
         self.name = name
         self._v = value
         self._w = weight
+        self._report_mean = report_mean
     
     def __hash__(self):
         return hash(self.name)
+
+    def __str__(self):
+        return f'{self._v}/{self._w}={self.mean:.3f}'
     
     def __eq__(self, other):
         return self.name == other.name
@@ -21,7 +25,8 @@ class Metric:
     def __add__(self, other):
         if isinstance(other, Metric):
             assert self == other, 'Cannot add two different metrics.'
-            return Metric(self.name, self._v + other._v, self._w + other._w)
+            assert self.report_mean == other.report_mean
+            return Metric(self.name, self._v + other._v, self._w + other._w, report_mean=self.report_mean)
         else:
             # NOTE This is useful for sum() call. 
             assert isinstance(other, (int, float)) and other == 0
@@ -29,6 +34,10 @@ class Metric:
         
     def __radd__(self, other):
         return self.__add__(other)
+
+    @property
+    def report_mean(self):
+        return self._report_mean
 
     @property
     def mean(self):
@@ -98,10 +107,9 @@ class Tracker:
 
     def output(self):
         logging.info('Epoch %d, summary from tracker:' %self.epoch)
-        for name in self._values:
-            v = self._values[name]
-            w = self._weights[name]
-            logging.info('  %s:\t%.2f' %(name, v / w))
-        ret = self._values['loss'] / self._weights['loss']
+        for name, metric in self._metrics.items():
+            score = metric.mean if metric.report_mean else metric.total
+            logging.info('  %s:\t%.2f' %(name, score))
+        ret = self._metrics['loss'].mean
         self.clear()
         return ret
