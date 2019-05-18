@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 from .cache import set_cache
+from .config import set_singleton
 
 patch = functools.partial(unittest.mock.patch, autospec=True)
 Mock = unittest.mock.MagicMock
@@ -28,6 +29,7 @@ class TestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         set_cache(False)
+        set_singleton(False)
 
     def assertMatrixShapeEqual(self, m1, m2):
         self.assertTupleEqual(m1.shape, m2.shape)

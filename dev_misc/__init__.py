@@ -21,10 +21,8 @@ from .cache import (
                    sc_get_cache,
                    cache,
                    clear_cache)
-from .argparser import (
-                    ArgParser,
-                    register_cfg,
-                    get_cfg)
+from .argparser import ArgParser
+from .config import make_config_class
 from .tracker import (
                     Metric,
                     Tracker)

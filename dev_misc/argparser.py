@@ -9,22 +9,6 @@ import torch
 
 from .map import Map
 
-######################################## Get config from predefined config classes ########################################
-
-_CONFIGS = dict()
-def register_cfg(cls):
-    global _CONFIGS
-    name = cls.__name__
-    assert name not in _CONFIGS, name
-    _CONFIGS[name] = cls
-    return cls
-
-def get_cfg(name):
-    global _CONFIGS
-    return _CONFIGS[name]
-    
-######################################## Commands and Argparser ########################################
-
 def _get_log_dir(args):
     while True:
         now = datetime.now()
@@ -78,7 +62,7 @@ class ArgParser(object):
     and options inherited from its parent.
     '''
 
-    def __init__(self, parent=None, root=None):
+    def __init__(self, parent=None, root=None, cfg_cls=None):
         if parent is None:
             name = sys.argv[0]
             self.root_command = _CommandNode(name, '')
@@ -86,6 +70,7 @@ class ArgParser(object):
         else:
             self.name2command = parent.name2command
             self.root_command = root
+        self.cfg_cls = cfg_cls
 
     def add_command(self, name):
         '''
@@ -110,9 +95,10 @@ class ArgParser(object):
         config_arg, _remaining_args = _base_parser.parse_known_args()
         defaults = {'config': config_arg.config}
         if config_arg.config:
-            config_cls = get_cfg(config_arg.config)
+            assert self.cfg_cls is not None
+            config_cls = self.cfg_cls.get(config_arg.config)
             cfg = config_cls()
-            defaults.update(cfg)
+            defaults.update(vars(cfg))
 
         # first parse the subcommand structure
         command = self.root_command
