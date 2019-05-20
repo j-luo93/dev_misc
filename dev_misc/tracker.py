@@ -49,10 +49,10 @@ class Metric:
 
 class Tracker:
 
-    def __init__(self):
-        self._epoch = 1
+    def __init__(self, metadata=None):
         self.clear_best()
         self.clear()
+        self._metadata = metadata
 
     def clear(self):
         self._metrics = defaultdict(float)
@@ -65,17 +65,26 @@ class Tracker:
         self._metrics[metric.name] += metric
 
     def copy_(self, other):
-        self._epoch = other._epoch
+        assert type(self._metadata) == type(other._metadata)
+        self._metadata = other._metadata
         self.best_score = other.best_score
         self.best_epoch = other.best_epoch
         self._metrics = other._metrics
 
-    @property
-    def epoch(self):
-        return self._epoch
-
-    def next_epoch(self):
-        self._epoch += 1
+    def __getattribute__(self, name):
+        try:
+            return super().__getattribute__(name)
+        except AttributeError as e:
+            try:
+                metadata = super().__getattribute__('_metadata')
+                return getattr(metadata, name)
+            except AttributeError as e:
+                raise e 
+    
+    def set_metadata(self, name, value):
+        if not hasattr(self._metadata, name):
+            raise AttributeError('No such attribute in metadata')
+        setattr(self._metadata, name, value)
 
     def update_best(self, score, mode='min', quiet=False):
         if isinstance(score, torch.Tensor):
