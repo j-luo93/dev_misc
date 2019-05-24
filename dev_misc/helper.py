@@ -89,3 +89,7 @@ def pprint_cols(data, num_cols=4):
     t.add_column(f'Column:{num_cols}', data[(num_cols - 1) * num_rows:] + [''] * ((num_rows - len(data) % num_rows) % num_rows))
     t.align = 'l'
     print(t)
+
+def check(t):
+    if (torch.isnan(t).any() | torch.isinf(t).any()).item():
+        breakpoint()

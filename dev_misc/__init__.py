@@ -9,7 +9,8 @@ from .helper import (
                     get_eye,
                     counter,
                     freeze,
-                    sort_all)
+                    sort_all,
+                    check)
 from .logger import (
                     create_logger,
                     log_this)

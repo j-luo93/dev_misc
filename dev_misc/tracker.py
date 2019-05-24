@@ -1,9 +1,10 @@
 import logging
+from collections import defaultdict
 
 import numpy as np
 import torch
 
-from collections import defaultdict
+from .map import Map
 
 class Metric:
     
@@ -17,7 +18,10 @@ class Metric:
         return hash(self.name)
 
     def __str__(self):
-        return f'{self._v}/{self._w}={self.mean:.3f}'
+        if self.report_mean:
+            return f'{self._v}/{self._w}={self.mean:.3f}'
+        else:
+            return f'{self.total}'
     
     def __eq__(self, other):
         return self.name == other.name
@@ -34,6 +38,13 @@ class Metric:
         
     def __radd__(self, other):
         return self.__add__(other)
+
+    @classmethod
+    def empty_metrics(self, keys):
+        ret = Map()
+        for k in keys:
+            ret[k] = Metric(k, 0, 0)
+        return ret
 
     @property
     def report_mean(self):
