@@ -124,7 +124,8 @@ class Metrics:
     def get_table(self):
         t = pt()
         t.field_names = 'name', 'value', 'weight', 'mean'
-        for k, metric in self._metrics.items():
+        for k in sorted(self._metrics.keys()):
+            metric = self._metrics[k]
             t.add_row([k, plain(metric.value), plain(metric.weight), plain(metric.mean)])
         t.align = 'l'
         return t
