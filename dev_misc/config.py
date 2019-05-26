@@ -49,3 +49,27 @@ def set_singleton(flag):
     assert flag in [True, False]
     global USE_SINGLETON
     USE_SINGLETON = flag
+
+def has_params(params_cls):
+    '''
+    This hooks ``params_cls`` with any class, and instantiate a params obj for that class.
+    It works by replacing the old __new__ method with a new one.
+    '''
+    
+    def wrapper(cls):
+        
+        old_new = cls.__new__
+        def new_new(cls, *args, **kwargs):
+            params_kwargs = {k: kwargs[k] for k in params_cls.__dataclass_fields__}
+            params = params_cls(**params_kwargs)
+            try:
+                obj = old_new(cls, *args, **kwargs)
+            except TypeError:
+                obj = old_new(cls)
+            obj.params = params
+            return obj
+        
+        cls.__new__ = new_new
+        return cls
+    
+    return wrapper

@@ -1,3 +1,4 @@
+from functools import wraps
 from inspect import signature
 from collections import defaultdict, namedtuple
 from collections.abc import Callable, Hashable
@@ -90,7 +91,6 @@ class _StructuredCache:
 	
 	def register_cache(self, name, *keys):
 		'''Register cache for all instances of the same registered function with ``name``.'''
-		assert name in self._to_keep
 		self._to_cache[name].update(keys)
 	
 	def cache(self, name, obj, ret):
@@ -120,6 +120,8 @@ def sc(name, *to_keep):
 	global _SC
 	
 	def descriptor(func):
+
+		@wraps(func)
 		def decorator(self, *args, **kwargs):
 			ret = func(self, *args, **kwargs)
 			assert isinstance(ret, Map)

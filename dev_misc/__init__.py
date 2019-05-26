@@ -16,14 +16,16 @@ from .logger import (
                     log_this)
 from .map import Map
 from .cache import (
-                   sc,
-                   sc_clear_cache,
-                   sc_register_cache,
-                   sc_get_cache,
-                   cache,
-                   clear_cache)
+                    sc,
+                    sc_clear_cache,
+                    sc_register_cache,
+                    sc_get_cache,
+                    cache,
+                    clear_cache)
 from .argparser import ArgParser
-from .config import make_config_class
+from .config import (
+                    make_config_class,
+                    has_params)
 from .tracker import (
                     Metric,
                     Tracker)
