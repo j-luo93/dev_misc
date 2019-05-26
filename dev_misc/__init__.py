@@ -13,7 +13,8 @@ from .helper import (
                     check)
 from .logger import (
                     create_logger,
-                    log_this)
+                    log_this,
+                    log_pp)
 from .map import Map
 from .cache import (
                     sc,
@@ -27,5 +28,7 @@ from .config import (
                     make_config_class,
                     has_params)
 from .tracker import (
-                    Metric,
                     Tracker)
+from .metrics import (
+                    Metric,
+                    Metrics)

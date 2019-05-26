@@ -114,3 +114,9 @@ def log_this(msg='', log_level='DEBUG', arg_list=None):
         return wrapper
 
     return decorator
+
+def log_pp(obj):
+    '''
+    Log ``obj`` with better indentations.
+    '''
+    logging.info(('\n' + str(obj)).replace('\n', '\n' + ' ' * 10))
