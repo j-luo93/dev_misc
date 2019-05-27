@@ -121,8 +121,10 @@ class Metrics:
         except KeyError:
             raise AttributeError(f'Cannot find this attribute {key}')
     
-    def get_table(self):
+    def get_table(self, title=''):
         t = pt()
+        if title:
+            t.title = title
         t.field_names = 'name', 'value', 'weight', 'mean'
         for k in sorted(self._metrics.keys()):
             metric = self._metrics[k]
