@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 from prettytable import PrettyTable as pt
+from functools import reduce
+from operator import mul
 
 import numpy as np
 import torch
@@ -93,3 +95,27 @@ def pprint_cols(data, num_cols=4):
 def check(t):
     if (torch.isnan(t).any() | torch.isinf(t).any()).item():
         breakpoint()
+
+def canonicalize(shape, dim):
+    if dim < 0:
+        return len(shape) + dim 
+    else:
+        return dim
+
+def divide(tensor, dim, div_shape):
+    prev_shape = tensor.shape
+    dim = canonicalize(prev_shape, dim)
+    if -1 not in div_shape:
+        total = reduce(mul, div_shape, 1)
+        assert total == prev_shape[dim]
+    new_shape = prev_shape[:dim] + tuple(div_shape) + prev_shape[dim + 1:]
+    return tensor.view(*new_shape)
+
+def merge(tensor, dims):
+    prev_shape = tensor.shape
+    dims = [canonicalize(prev_shape, dim) for dim in dims]
+    for a, b in zip(dims[:-1], dims[1:]):
+        assert b == a + 1
+    total = reduce(mul, [prev_shape[d] for d in dims], 1)
+    new_shape = prev_shape[:dims[0]] + (total, ) + prev_shape[dims[-1] + 1:]
+    return tensor.view(*new_shape)

@@ -114,7 +114,7 @@ class Metrics:
             m2 = other._metrics.get(k, 0)
             metrics.append(m1 + m2)
         return Metrics(*metrics)
-    
+
     def __getattr__(self, key):
         try:
             return super().__getattribute__('_metrics')[key]

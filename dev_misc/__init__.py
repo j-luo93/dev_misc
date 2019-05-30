@@ -10,7 +10,9 @@ from .helper import (
                     counter,
                     freeze,
                     sort_all,
-                    check)
+                    check,
+                    divide,
+                    merge)
 from .logger import (
                     create_logger,
                     log_this,
