@@ -60,6 +60,11 @@ class Metric:
     def __radd__(self, other):
         return self.__add__(other)
 
+    def rename(self, name):
+        '''This is in-place.'''
+        self.name = name
+        return self
+
     @property
     def value(self):
         return self._v
