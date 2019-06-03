@@ -9,3 +9,6 @@ In sum, these are the features we need for quality argument parser.
 * The ability for fast prototyping by allowing some ad-hoc arguments to be added and used without triggering errors in CLI (but warnings nonetheless). 
 * The ability for access the params everywhere (i.e., a global entry)
 
+# TODO
+[x] Framework and global entry.
+[ ] Use file to set up default values.
