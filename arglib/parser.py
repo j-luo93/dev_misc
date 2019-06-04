@@ -6,7 +6,7 @@ from pprint import pformat
 from pytrie import SortedStringTrie
 
 from .argument import Argument, canonicalize, UnparsedArgument
-from .property import has_property
+from .property import has_properties
 
 
 class DuplicateError(Exception):
@@ -22,7 +22,7 @@ class ParsedError(Exception):
     pass
 
 _NODES = dict()
-@has_property('command_name')
+@has_properties('command_name')
 class _ParserNode:
     '''
     Each node is (sub)command.

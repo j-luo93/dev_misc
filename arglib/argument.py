@@ -1,7 +1,7 @@
 """
 Options or arguments are all referred to as arguments in this library. After all, options are just optinal arguments.
 """
-from .property import has_property
+from .property import has_properties
 
 class FormatError(Exception):
     pass
@@ -22,7 +22,7 @@ def canonicalize(name):
     else:
         return name
 
-@has_property('value', 'name', 'idx')
+@has_properties('value', 'name', 'idx')
 class UnparsedArgument:
     
     _IDX = 0
@@ -38,7 +38,7 @@ class UnparsedArgument:
         self._idx = UnparsedArgument._IDX
         UnparsedArgument._IDX += 1
 
-@has_property('full_name', 'short_name', 'default', 'dtype', 'help', 'name')
+@has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'name')
 class Argument:
 
     def __init__(self, full_name, short_name=None, default=None, dtype=None, help=''):
