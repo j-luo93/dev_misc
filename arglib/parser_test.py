@@ -1,6 +1,7 @@
 from . import parser
 import sys
 from unittest import TestCase
+from unittest.mock import MagicMock, Mock
 
 
 class TestParser(TestCase):
@@ -57,4 +58,29 @@ class TestParser(TestCase):
         a = parser.get_argument('-o1')
         self.assertEqual(a.value, 2)
 
+    def _get_cfg_mock(self):
+        reg = MagicMock()
+        def side_effect():
+            class Test:
+                def __init__(self):
+                    self.x = 1
+            return Test()
 
+        reg.__getitem__.return_value = Mock(side_effect=side_effect)
+        return reg
+
+    def test_cfg_default(self):
+        reg = self._get_cfg_mock()
+        parser.add_cfg_registry(reg)
+        sys.argv = 'dummy.py -cfg Test'.split()
+        parser.parse_args()
+        a = parser.get_argument('--x')
+        self.assertEqual(a.value, 1)
+
+    def test_cfg_cli(self):
+        reg = self._get_cfg_mock()
+        parser.add_cfg_registry(reg)
+        sys.argv = 'dummy.py -cfg Test --x 2'.split()
+        parser.parse_args()
+        a = parser.get_argument('--x')
+        self.assertEqual(a.value, 2)

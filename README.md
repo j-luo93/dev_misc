@@ -11,4 +11,5 @@ In sum, these are the features we need for quality argument parser.
 
 # TODO
 [x] Framework and global entry.
-[ ] Use file to set up default values.
+[x] Use file to set up default values.
+[ ] Ad-hoc arguments.
