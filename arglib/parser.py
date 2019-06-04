@@ -6,6 +6,7 @@ from pprint import pformat
 from pytrie import SortedStringTrie
 
 from .argument import Argument, canonicalize, UnparsedArgument
+from .property import has_property
 
 
 class DuplicateError(Exception):
@@ -21,6 +22,7 @@ class ParsedError(Exception):
     pass
 
 _NODES = dict()
+@has_property('command_name')
 class _ParserNode:
     '''
     Each node is (sub)command.
@@ -29,7 +31,6 @@ class _ParserNode:
     def __init__(self, command_name):
         assert command_name not in _NODES
         _NODES[command_name] = self
-        self._command_name = command_name
         self._args = SortedStringTrie()
         self._registry = None
         self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg'}
@@ -43,10 +44,6 @@ class _ParserNode:
         self._registry = registry
         self.add_argument('--config', '-cfg', dtype=str, default='', force=True)
         
-    @property
-    def command_name(self):
-        return self._command_name
-    
     def _check_keywords(self, name):
         # Raise error if keywords are used.
         if name in self._kwds:
