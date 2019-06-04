@@ -38,10 +38,10 @@ class UnparsedArgument:
         self._idx = UnparsedArgument._IDX
         UnparsedArgument._IDX += 1
 
-@has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'name')
+@has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'name', 'nargs')
 class Argument:
 
-    def __init__(self, full_name, short_name=None, default=None, dtype=None, help=''):
+    def __init__(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help=''):
         """Construct an Argument object.
         
         Args:
@@ -60,6 +60,13 @@ class Argument:
         self._default = default
         self._name = full_name[2:] 
 
+        nargs = nargs or 1
+        assert isinstance(nargs, int) or nargs == '+'
+        if dtype is bool:
+            nargs = 0
+        self._nargs = nargs
+
+        # NOTE value should be set after everything is done.
         self.value = default
         if self.default is not None and dtype is None:
             # Use the type of the default.
@@ -71,8 +78,22 @@ class Argument:
 
     @value.setter
     def value(self, new_value):
-        if self._dtype:
-            new_value = self._dtype(new_value)
+        if new_value is not None:
+            if self.nargs == '+':
+                if not isinstance(new_value, tuple):
+                    new_value = (new_value, )
+            elif self.nargs == 1:
+                if isinstance(new_value, tuple):
+                    raise FormatError(f'nargs should not be a tuple with {new_value} for {self!r}.')
+            else:
+                if not isinstance(new_value, tuple) or len(new_value) != self.nargs:
+                    raise FormatError(f'nargs mismatch with {new_value} for {self!r}.')
+            
+        if self._dtype and new_value is not None:
+            if isinstance(new_value, tuple):
+                new_value = tuple(self._dtype(v) for v in new_value)
+            else:
+                new_value = self._dtype(new_value)
         self._value = new_value
 
     def __str__(self):

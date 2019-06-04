@@ -35,6 +35,7 @@ class _ParserNode:
         self._registry = None
         self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg'}
         self._parsed = False
+        self._cli_unparsed = None
         self.add_argument('--unsafe', '-u', dtype=bool, force=True)
     
     def __repr__(self):
@@ -49,7 +50,7 @@ class _ParserNode:
         if name in self._kwds:
             raise KeywordError(f'Keyword {name} cannot be used here')
         
-    def add_argument(self, full_name, short_name=None, default=None, dtype=None, help='', force=False):
+    def add_argument(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help='', force=False):
         if self._parsed and not _ParserNode._unsafe:
             raise ParsedError('Already parsed.')
 
@@ -57,7 +58,7 @@ class _ParserNode:
             self._check_keywords(full_name)
             self._check_keywords(short_name)
 
-        arg = Argument(full_name, short_name=short_name, default=default, dtype=dtype, help=help)
+        arg = Argument(full_name, short_name=short_name, default=default, dtype=dtype, nargs=nargs, help=help)
         if full_name in self._args:
             raise DuplicateError(f'Full name {full_name} has already been defined.')
         if short_name and short_name in self._args:
@@ -190,9 +191,9 @@ def _get_node(node):
         _NODES['_root'] = _ParserNode('_root')
     return _NODES[node]
 
-def add_argument(full_name, short_name=None, default=None, dtype=None, node=None, help=''):
+def add_argument(full_name, short_name=None, default=None, dtype=None, node=None, nargs=None, help=''):
     node = _get_node(node)
-    a = node.add_argument(full_name, short_name=short_name, default=default, dtype=dtype, help=help)
+    a = node.add_argument(full_name, short_name=short_name, default=default, dtype=dtype, nargs=nargs, help=help)
     return a.value
 
 def get_argument(name, node=None):

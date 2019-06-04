@@ -102,8 +102,10 @@ class TestParser(TestCase):
     def _get_test_obj(self):
         class Test:
             parser.add_argument('--y', default=2)
+            parser.add_argument('--m', default=(1, 2), dtype=int, nargs=2)
             def __init__(self):
                 self.y = parser.get_argument('y')
+                self.m = parser.get_argument('m')
 
         return Test()
 
@@ -113,13 +115,15 @@ class TestParser(TestCase):
         parser.parse_args()
         obj = self._get_test_obj()
         self.assertEqual(obj.y, 2)
+        self.assertTupleEqual(obj.m, (1, 2))
 
     def test_ad_hoc_in_class_overridden_by_cli(self):
         parser.add_argument('--x', default=1, dtype=int)
-        sys.argv = 'dummy.py -u --y 3'.split()
+        sys.argv = 'dummy.py -u --y 3 --m 3 4'.split()
         parser.parse_args()
         obj = self._get_test_obj()
         self.assertEqual(obj.y, 3)
+        self.assertTupleEqual(obj.m, (3, 4))
 
     def test_ad_hoc_in_cli(self):
         parser.add_argument('--x', default=1)
