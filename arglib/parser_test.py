@@ -94,10 +94,17 @@ class TestParser(TestCase):
         with self.assertRaises(parser.KeywordError):
             parser.add_argument('-u')
     
+    def test_parsed(self):
+        parser.parse_args()
+        with self.assertRaises(parser.ParsedError):
+            parser.add_argument('--x')
+    
     def _get_test_obj(self):
         class Test:
+            parser.add_argument('--y', default=2)
             def __init__(self):
-                self.y = parser.get_argument('y', default=2)
+                self.y = parser.get_argument('y')
+
         return Test()
 
     def test_ad_hoc_in_class(self):
@@ -118,5 +125,6 @@ class TestParser(TestCase):
         parser.add_argument('--x', default=1)
         sys.argv = 'dummy.py --y 2 -u'.split()
         parser.parse_args()
+        parser.add_argument('--y', default=1, dtype=int)
         a = parser.get_argument('y')
         self.assertEqual(a, 2)
