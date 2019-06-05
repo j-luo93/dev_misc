@@ -9,7 +9,6 @@ def add_properties(*names):
 
     def decorator(cls):
         for name in names:
-            assert not hasattr(cls, name), name
             setattr(cls, name, property(lambda self, name=name: getattr(self, f'_{name}'))) # NOTE The keyword is necessary.
         return cls
 
@@ -19,10 +18,7 @@ def set_properties(*names, **values):
 
     def decorator(self):
         for name in names:
-            try:
-                setattr(self, f'_{name}', values[name])
-            except KeyError:
-                logging.warning(f'{name} not passed by values')
+            setattr(self, f'_{name}', values[name])
 
         return self
         

@@ -32,6 +32,7 @@ class _ParserNode:
         assert command_name not in _NODES
         _NODES[command_name] = self
         self._args = SortedStringTrie()
+        self._arg_views = SortedStringTrie() # This stores argument views for booleans.
         self._registry = None
         self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg'}
         self._parsed = False
@@ -63,9 +64,21 @@ class _ParserNode:
             raise DuplicateError(f'Full name {full_name} has already been defined.')
         if short_name and short_name in self._args:
             raise DuplicateError(f'Short name {short_name} has already been defined.')
+        
         self._args[full_name] = arg
         if short_name:
             self._args[short_name] = arg
+        # For bool arguments, we need multiple views of the same underlying argument.
+        if dtype is bool:
+            pos_name = full_name
+            neg_name = f'--no_{full_name[2:]}'
+            self._arg_views[pos_name] = arg.view(pos_name, True)
+            self._arg_views[neg_name] = arg.view(neg_name, False)
+            if short_name:
+                pos_name = short_name
+                neg_name = f'-no_{short_name[1:]}'
+                self._arg_views[pos_name] = arg.view(pos_name, True)
+                self._arg_views[neg_name] = arg.view(neg_name, False)
         
         if self._parsed and _ParserNode._unsafe:
             self._parse_one_arg(full_name)
@@ -77,9 +90,21 @@ class _ParserNode:
             print(' ' * 9, a)
         sys.exit(0)
         
-    def get_argument(self, name):
+    def get_argument(self, name, view_ok=True):
         name = canonicalize(name)
-        a = self._args.values(prefix=name)
+        # Always go for views first.
+        a = None
+        if view_ok:
+            try:
+                a = self._get_argument_from_trie(name, self._arg_views)
+            except NameError:
+                pass
+        if a is None:
+            a = self._get_argument_from_trie(name, self._args)
+        return a
+    
+    def _get_argument_from_trie(self, name, trie):
+        a = trie.values(prefix=name)
         if len(a) > 1:
             raise MultipleMatchError('Found multiple matches.')
         elif len(a) == 0:
@@ -90,6 +115,12 @@ class _ParserNode:
         a = a[0]
         return a
 
+    def _update_arg(self, arg, un_arg):
+        if arg.is_view():
+            arg.use_this_view()
+        else:
+            arg.value = un_arg.value
+
     def _parse_one_cli_arg(self, un_arg):
         """Parse one CLI argument.
         
@@ -99,7 +130,7 @@ class _ParserNode:
         a = self.get_argument(un_arg.name)
         if a is None:
             return None
-        a.value = un_arg.value
+        self._update_arg(a, un_arg)
         return a
     
     def _parse_one_arg(self, name):
@@ -115,16 +146,25 @@ class _ParserNode:
         if arg is None:
             return None
 
-        items = list(self._cli_unparsed.iter_prefix_items(arg.full_name))
-        if arg.short_name:
-            items += list(self._cli_unparsed.iter_prefix_items(arg.short_name))
+        prefixes = list()
+        if arg.is_view():
+            for view in arg.views:
+                prefixes.append(view.name)
+        else:
+            prefixes.append(arg.full_name)
+            if arg.short_name:
+                prefixes.append(arg.short_name)
+        items = list()
+        for p in prefixes:
+            items += list(self._cli_unparsed.iter_prefix_items(p))
 
         last_idx = None
         for k, un_arg in items:
-            assert self.get_argument(un_arg.name) is arg
+            double_check = self.get_argument(un_arg.name)
+            assert double_check == arg, f'{double_check} : {arg}'
             if last_idx is None or un_arg.idx > last_idx:
                 last_idx = un_arg.idx
-                arg.value = un_arg.value
+                self._update_arg(double_check, un_arg) # NOTE Use double_check here since this is the view that matches the un_arg.
             del self._cli_unparsed[k]
         if last_idx is None:
             return None
@@ -198,7 +238,7 @@ def add_argument(full_name, short_name=None, default=None, dtype=None, node=None
 
 def get_argument(name, node=None):
     node = _get_node(node)
-    return node.get_argument(name).value
+    return node.get_argument(name, view_ok=False).value # NOTE This public API should not allow views.
 
 def clear_parser():
     global _NODES

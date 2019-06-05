@@ -16,3 +16,4 @@ In sum, these are the features we need for quality argument parser.
 [x] Use trie to find arguments.
 [x] `has_property` decorator.
 [x] nargs.
+[x] bool.

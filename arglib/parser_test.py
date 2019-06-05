@@ -3,7 +3,6 @@ from unittest import TestCase
 from unittest.mock import MagicMock
 
 from . import parser
-from .argument import FormatError
 
 
 class TestParser(TestCase):
@@ -19,16 +18,6 @@ class TestParser(TestCase):
         with self.assertRaises(parser.DuplicateError):
             parser.add_argument('--option2', '-o1')
 
-    def test_format(self):
-        with self.assertRaises(FormatError):
-            parser.add_argument('-option1')
-        with self.assertRaises(FormatError):
-            parser.add_argument('--option1', '--o1')
-        with self.assertRaises(FormatError):
-            parser.add_argument('option1')
-        with self.assertRaises(FormatError):
-            parser.add_argument('--option1', 'o1')
-        
     def test_match(self):
         parser.add_argument('--option1', '-o1')
         parser.add_argument('--option2', '-o2')
@@ -103,6 +92,8 @@ class TestParser(TestCase):
         class Test:
             parser.add_argument('--y', default=2)
             parser.add_argument('--m', default=(1, 2), dtype=int, nargs=2)
+            parser.add_argument('--use_this', default=True, dtype=bool)
+            parser.add_argument('--use_that', default=False, dtype=bool)
             def __init__(self):
                 self.y = parser.get_argument('y')
                 self.m = parser.get_argument('m')
@@ -116,14 +107,22 @@ class TestParser(TestCase):
         obj = self._get_test_obj()
         self.assertEqual(obj.y, 2)
         self.assertTupleEqual(obj.m, (1, 2))
+        a = parser.get_argument('use_this')
+        self.assertEqual(a, True)
+        a = parser.get_argument('use_that')
+        self.assertEqual(a, False)
 
     def test_ad_hoc_in_class_overridden_by_cli(self):
         parser.add_argument('--x', default=1, dtype=int)
-        sys.argv = 'dummy.py -u --y 3 --m 3 4'.split()
+        sys.argv = 'dummy.py -u --y 3 --m 3 4 --use_that --no_use_this'.split()
         parser.parse_args()
         obj = self._get_test_obj()
         self.assertEqual(obj.y, 3)
         self.assertTupleEqual(obj.m, (3, 4))
+        a = parser.get_argument('use_this')
+        self.assertEqual(a, False)
+        a = parser.get_argument('use_that')
+        self.assertEqual(a, True)
 
     def test_ad_hoc_in_cli(self):
         parser.add_argument('--x', default=1)
@@ -132,3 +131,19 @@ class TestParser(TestCase):
         parser.add_argument('--y', default=1, dtype=int)
         a = parser.get_argument('y')
         self.assertEqual(a, 2)
+    
+    def test_bool_negative(self):
+        parser.add_argument('--use_default', dtype=bool, default=True)
+        sys.argv = 'dummy.py --no_use_default'.split()
+        parser.parse_args()
+        a = parser.get_argument('use_default')
+        self.assertEqual(a, False)
+        with self.assertRaises(NameError):
+            parser.get_argument('--no_use_default')
+
+    def test_bool_positive(self):
+        parser.add_argument('--use_default', dtype=bool, default=False)
+        sys.argv = 'dummy.py --use_default'.split()
+        parser.parse_args()
+        a = parser.get_argument('use_default')
+        self.assertEqual(a, True)
