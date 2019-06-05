@@ -104,6 +104,13 @@ class _ParserNode:
         return a
     
     def _get_argument_from_trie(self, name, trie):
+        # Try exact match first.
+        try:
+            a = trie[name]
+            return a
+        except KeyError:
+            pass
+        # Try fuzzy match.
         a = trie.values(prefix=name)
         if len(a) > 1:
             raise MultipleMatchError('Found multiple matches.')
