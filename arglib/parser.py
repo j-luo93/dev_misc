@@ -6,7 +6,7 @@ from pprint import pformat
 from pytrie import SortedStringTrie
 
 from .argument import Argument, canonicalize, UnparsedArgument
-from .property import has_properties
+from .property import has_properties, add_properties, set_properties
 
 
 class DuplicateError(Exception):
@@ -253,3 +253,17 @@ def parse_args(node=None):
 def add_cfg_registry(registry, node=None):
     node = _get_node(node)
     node.add_cfg_registry(registry)
+
+def use_arguments_as_properties(*names):
+    def decorator(cls):
+        cls = add_properties(*names)(cls)
+
+        old_init = cls.__init__
+        def new_init(self, *args, **kwargs):
+            values = {name: get_argument(name) for name in names}
+            self = set_properties(*names, **values)(self)
+            old_init(self, *args, **kwargs)
+
+        cls.__init__ = new_init
+        return cls
+    return decorator

@@ -2,9 +2,6 @@ import logging
 from functools import wraps
 from inspect import signature
 
-import parser
-
-
 def add_properties(*names):
 
     def decorator(cls):
@@ -43,18 +40,4 @@ def has_properties(*names):
         cls.__init__ = new_init
         return cls
 
-    return decorator
-
-def use_arguments_as_properties(*names):
-    def decorator(cls):
-        cls = add_properties(*names)(cls)
-
-        old_init = cls.__init__
-        def new_init(self, *args, **kwargs):
-            values = {name: parser.get_argument(name) for name in names}
-            self = set_properties(*names, **values)(self)
-            old_init(self, *args, **kwargs)
-
-        cls.__init__ = new_init
-        return cls
     return decorator
