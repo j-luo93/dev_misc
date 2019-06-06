@@ -9,7 +9,7 @@ import torch
 
 from .map import Map
 
-def _get_log_dir(args):
+def get_log_dir(args):
     while True:
         now = datetime.now()
         date = now.strftime("%m-%d")
@@ -132,7 +132,7 @@ class ArgParser(object):
         args = parser.parse_args(sys.argv[i:])
         args.mode = '-'.join(chain[-1].name.split('=>')[1:])
         if to_log:
-            args.log_dir = _get_log_dir(args)
+            args.log_dir = get_log_dir(args)
         else:
             args.log_dir = None
         return Map(**vars(args))
