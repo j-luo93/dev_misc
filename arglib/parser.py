@@ -36,8 +36,15 @@ class _ParserNode:
         self._registry = None
         self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg'}
         self._parsed = False
+        self._reset = False
         self._cli_unparsed = None
         self.add_argument('--unsafe', '-u', dtype=bool, force=True)
+    
+    def reset(self):
+        for a in self._args.values():
+            a.reset()
+        self._parsed = False
+        self._reset = True
     
     def __repr__(self):
         return self.command_name
@@ -52,6 +59,9 @@ class _ParserNode:
             raise KeywordError(f'Keyword {name} cannot be used here')
         
     def add_argument(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help='', force=False):
+        if self._reset:
+            return self._args[full_name]
+
         if self._parsed and not _ParserNode._unsafe:
             raise ParsedError('Already parsed.')
 
@@ -190,7 +200,7 @@ class _ParserNode:
         The second one is more natural, and we can easily go from left to right to make sure every CLI argument is handled.
         However, the first one is needed in unsafe mode, where a newly declared argument should be resolved.
         """
-        if self._parsed:
+        if self._parsed and not self._reset:
             raise ParsedError('Already parsed.')
 
         argv = sys.argv[1:]
@@ -247,10 +257,15 @@ def get_argument(name, node=None):
     node = _get_node(node)
     return node.get_argument(name, view_ok=False).value # NOTE This public API should not allow views.
 
-def clear_parser():
+def clear():
+    """Clear all parser data."""
     global _NODES
     _NODES = dict()
     _ParserNode._unsafe = False
+
+def reset(node=None):
+    node = _get_node(node)
+    node.reset()
 
 def parse_args(node=None):
     node = _get_node(node)

@@ -8,7 +8,7 @@ from . import parser
 class TestParser(TestCase):
     
     def setUp(self):
-        parser.clear_parser()
+        parser.clear()
         sys.argv = ['dummy.py']
 
     def test_duplicates(self):

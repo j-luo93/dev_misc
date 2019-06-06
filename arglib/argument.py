@@ -97,6 +97,9 @@ class Argument:
 
     def is_view(self):
         return False
+    
+    def reset(self):
+        self.value = self.default
 
     @value.setter
     def value(self, new_value):
