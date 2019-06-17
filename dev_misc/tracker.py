@@ -1,14 +1,54 @@
-import logging
+import io
 import itertools
+import logging
+import sys
 import time
 
 import enlighten
 import numpy as np
 import torch
+from treelib import Node, Tree
 
 from .metrics import plain
 
+
+class _Snapshot:
+
+    def __init__(self, stage):
+
+        def helper(this_stage):
+            if this_stage is None or this_stage._name == '_main' or this_stage._parent is None:
+                return dict(), list()
+            ret_dict, ret_list = helper(this_stage._parent)
+            ret_dict.update({this_stage._name: this_stage._step + 1})
+            ret_list.append((this_stage._name, this_stage._step + 1))
+            return ret_dict, ret_list
+        
+        self._signature_dict, self._signature_list = helper(stage)
+    
+    def __str__(self):
+        ret = list()
+        for name, step in self._signature_list:
+            ret.append(f'"{name}: {step}"')
+        return ' -> '.join(ret)
+    
+    def get(self, key):
+        if key not in self._signature_dict:
+            raise KeyError(f'Key {key} not found')
+        else:
+            return self._signature_dict[key]
+    
+    @property
+    def status(self):
+        if len(self._signature_list) == 0:
+            return None
+        return self._signature_list[-1]
+
+    def as_suffix(self):
+        return str(self).replace(' -> ', '-').replace(': ', '_').replace(' ', '')
+    
 _manager = enlighten.get_manager()
+_stage_names = set() # NOTE Make sure no two stage names are identical.
 class _Stage:
 
     def __init__(self, name, num_steps=1, parent=None):
@@ -20,16 +60,23 @@ class _Stage:
         # These attributes are needed to track the progress.
         self._step = 0 # NOTE Current step for this Stage object.
         self._current_substage_idx = 0 # NOTE Current substage idx.
-        self._current_stage = None # NOTE Current stage (the stage just yielded).
+        self._current_stage = _Snapshot(None) # NOTE Current stage (the stage just yielded).
         self._parent = parent
         self._root_cache = None # NOTE Store the root node (to flatten the tree structure).
         self._pbars = dict()
         self._generator = None # NOTE Store the generator for the root node only.
-        
+        if self.root is self:
+            self._tree = Tree() # NOTE Store the tree structure for treelib.
+            self._tree.create_node(repr(self), self)
+        else:
+            self.root._tree.create_node(repr(self), self, parent=parent)
         # Add a pbar if num_steps > 1.
         if self._num_steps > 1:
             self.add_pbar(name, total=num_steps)
     
+    def __hash__(self):
+        return id(self)
+
     def load_state_dict(self, state_dict):
         self._step = state_dict['_step']
         self._current_substage_idx = state_dict['_current_substage_idx']
@@ -40,6 +87,13 @@ class _Stage:
             pbar.refresh()
         for s1, s2 in zip(self._stages, state_dict['_stages']):
             s1.load_state_dict(s2)
+    
+    def as_tree(self):
+        sys.stdout = io.StringIO()
+        self.root._tree.show()
+        output = sys.stdout.getvalue()
+        sys.stdout = sys.__stdout__
+        return output
     
     def state_dict(self):
         ret = {'_step': self._step, '_current_substage_idx': self._current_substage_idx, '_current_stage': self._current_stage}
@@ -92,7 +146,7 @@ class _Stage:
                 self._update_pbars() # NOTE This must be called before yielding.
                 if self._step == self._num_steps - 1:
                     logging.info(f'Ending {self}.')
-                snapshot = str(self) # NOTE Already yield a snapshot since attributes like _step is constantly changing due to next_safe check.
+                snapshot = _Snapshot(self) # NOTE Already yield a snapshot since attributes like _step is constantly changing due to next_safe check.
                 self._step += 1
                 yield snapshot
             self._step = 0
@@ -117,18 +171,13 @@ class _Stage:
         return f'Stage(name="{self._name}", num_steps={self._num_steps})'
     
     def __str__(self):
-        if self._name == '_main' or self._parent is None:
-            return ''
-        ret = str(self._parent)
-        if ret:
-            ret += ' -> '
-        ret += f'"{self._name}: {self._step + 1}"'
-        return ret
-    
+        return str(_Snapshot(self))
+
     def add_stage(self, name, num_steps=1):
-        assert all([name != stage._name for stage in self._stages])
+        assert name not in _stage_names
 
         stage = _Stage(name, num_steps=num_steps, parent=self)
+        _stage_names.add(name)
         self._stages.append(stage)
         return stage
 
@@ -141,19 +190,6 @@ class _Stage:
                         unit=unit,
                         leave=False)
         self._pbars[name] = pbar
-    
-    def __eq__(self, other):
-        """Stages are equal if they have the same layout."""
-        if not isinstance(other, _Stage):
-            return False
-        if (self._name != other._name) or (self._num_steps != other._num_steps):
-            return False
-        if len(self._stages) != len(other._stages):
-            return False
-        for s1, s2 in zip(self._stages, other._stages):
-            if s1 != s2:
-                return False
-        return True
     
     @property
     def current_stage(self):
@@ -185,15 +221,10 @@ class Tracker:
     def stage(self):
         return self._stage.current_stage
     
-    def copy_(self, other):
-        assert isinstance(other, Tracker)
-        if self._stage != other._stage:
-            logging.error('Somehow the stages are not identical. Abort copying stage.')
-        else:
-            self._stage.copy_(other._stage)
-        self.best_score = other.best_score
-        self.best_stage = other.best_stage
-
+    @property
+    def plan(self):
+        return self._stage.as_tree()
+    
     def update_best(self, score, mode='min', quiet=False):
         """Update the best score and best stage. 
         
@@ -222,7 +253,7 @@ class Tracker:
         updated = should_update()
         if updated:
             self.best_score = score
-            self.best_stage = self.stage
+            self.best_stage = str(self.stage)
         if self.best_score is not None and not quiet:
             logging.info(f'Best score is {self.best_score:.3f} at stage {self.best_stage}')
         return updated
