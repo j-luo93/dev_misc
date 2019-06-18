@@ -16,6 +16,10 @@ def _check_name(name):
     assert name not in _stage_names
     _stage_names.add(name)
 
+def _reset_pbar(pbar):
+    pbar.count = 0
+    pbar.start = time.time()
+
 @has_properties('name', 'num_steps', 'parent')
 class _Stage:
 
@@ -30,9 +34,15 @@ class _Stage:
     def update_pbars(self):
         for pbar in self._pbars.values():
             if pbar.total == pbar.count:
-                pbar.count = 0
-                pbar.start = time.time()
+                _reset_pbar(pbar)
             pbar.update()
+    
+    def reset_pbars(self, recursive=False):
+        for pbar in self._pbars.values():
+            _reset_pbar(pbar)
+        if recursive:
+            for substage in self.substages:
+                substage.reset_pbars(recursive=True)
 
     def add_pbar(self, name, total=None, unit='samples'):
         if name in self._pbars:
@@ -62,12 +72,19 @@ class _Stage:
         return f'Stage(name={self.name}, num_steps={self.num_steps})'
     
     def load_state_dict(self, state_dict):
+        missing = list()
         for name, pbar_meta in state_dict['_pbars'].items():
-            pbar = self._pbars[name]
+            try:
+                pbar = self._pbars[name]
+            except KeyError:
+                missing.append(f'pbar:{name}')
+                continue
             pbar.count = pbar_meta['count']
             pbar.refresh()
         for s1, s2 in zip(self.substages, state_dict['_stages']):
             s1.load_state_dict(s2)
+        if missing:
+            raise RuntimeError(f'Missing {missing}')
     
     def state_dict(self):
         ret = dict()
@@ -328,3 +345,6 @@ class Tracker:
     
     def fix_schedule(self):
         self._schedule.fix_schedule()
+    
+    def reset_pbars(self):
+        self._schedule.reset_pbars(recursive=True)
