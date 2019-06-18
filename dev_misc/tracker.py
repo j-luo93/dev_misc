@@ -12,10 +12,16 @@ from .metrics import plain
 
 _manager = enlighten.get_manager()
 _stage_names = set()
+def _check_name(name):
+    assert name not in _stage_names
+    _stage_names.add(name)
+
 @has_properties('name', 'num_steps', 'parent')
 class _Stage:
 
     def __init__(self, name, num_steps=1, parent=None):
+        _check_name(name)
+
         self._pbars = dict()
         self.substages = list()
         if self.num_steps > 1:
@@ -36,15 +42,18 @@ class _Stage:
                         total=total,
                         unit=unit,
                         leave=False)
+        pbar.refresh()
         self._pbars[name] = pbar
     
     def add_stage(self, name, num_steps=1):
-        assert name not in _stage_names
-
         stage = _Stage(name, num_steps=num_steps, parent=self)
-        _stage_names.add(name)
         self.substages.append(stage)
         return stage
+    
+    # def adjoin_stage(self, stage):
+    #     assert isinstance(stage, _Stage)
+    #     self.substages.append(stage)
+    #     return self
     
     def __str__(self):
         return f'"{self.name}"'
@@ -192,8 +201,8 @@ class _Path:
 
 class _Schedule(_Stage):
 
-    def __init__(self):
-        super().__init__('_main', num_steps=1)
+    def __init__(self, name):
+        super().__init__(name, num_steps=1)
         self._path = None
     
     def _build_path(self):
@@ -234,16 +243,25 @@ class _Schedule(_Stage):
 
     def fix_schedule(self):
         self._build_path()
+    
+    def reset(self):
+        self._build_path()
 
 class Tracker:
 
-    def __init__(self):
+    def __init__(self, name):
         self.clear_best()
-        self._schedule = _Schedule()
+        self._schedule = _Schedule(name)
+
+    def schedule_as_tree(self):
+        return self._schedule.as_tree()
 
     @property
     def schedule(self):
-        return self._schedule.as_tree()
+        return self._schedule
+
+    def reset(self):
+        self._schedule.reset()
 
     def add_stage(self, name, num_steps=1):
         return self._schedule.add_stage(name, num_steps=num_steps)
