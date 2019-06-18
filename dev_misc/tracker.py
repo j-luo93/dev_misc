@@ -1,7 +1,10 @@
+import io
 import logging
+import sys
 import time
 
 import enlighten
+from treelib import Tree
 
 from arglib import has_properties
 
@@ -68,9 +71,14 @@ class _Stage:
 
 @has_properties('step', 'substage_idx')
 class _Node:
+    """A wrapper of stage that contains step and substage_idx information."""
     
     def __init__(self, stage, step, substage_idx):
         self.stage = stage
+    
+    @property
+    def name(self):
+        return self.stage.name
     
     def is_last(self):
         last_step = (self.step == self.stage.num_steps - 1)
@@ -104,8 +112,10 @@ class _Path:
 
     def __init__(self, schedule):
         self._nodes = list()
+        self._nodes_dict = dict()
         self._schedule = schedule
         self._get_first_path(self._schedule)
+        self._finished = False
 
     def _add(self, node):
         # Check that this is a valid extension of the original path.
@@ -117,6 +127,7 @@ class _Path:
         assert safe
         # Add it.
         self._nodes.append(node)
+        self._nodes_dict[node.stage.name] = node.step
     
     def __str__(self):
         ret = ' -> '.join([str(node) for node in self._nodes])
@@ -145,9 +156,14 @@ class _Path:
         
         helper(stage_or_node)
 
+    @property
+    def finished(self):
+        return self._finished
+
     def next_path(self):
         """Note that this is in-place. It returns the nodes incremented."""
         # First backtrack to the first ancestor that hasn't been completed yet.
+        assert not self._finished
         i = len(self._nodes)
         while i > 0:
             i -= 1
@@ -156,7 +172,8 @@ class _Path:
                 break
         # Now complete it.
         if last_node.is_last():
-            raise StopIteration('Cannot find next path.')
+            self._finished = True
+            affected_nodes = self._nodes[1:]
         else:
             affected_nodes = self._nodes[i + 1:] # NOTE Everything that is last will be incremented.
             self._nodes = self._nodes[:i]
@@ -165,6 +182,13 @@ class _Path:
                 affected_nodes.append(next_node)
             self._get_first_path(next_node)
         return affected_nodes
+    
+    @property
+    def leaf_node(self):
+        return self._nodes[-1]
+
+    def get_step(self, key):
+        return self._nodes_dict[key]
 
 class _Schedule(_Stage):
 
@@ -172,18 +196,54 @@ class _Schedule(_Stage):
         super().__init__('_main', num_steps=1)
         self._path = None
     
+    def _build_path(self):
+        self._path = _Path(self)
+    
     def update(self):
-        if self._path is None:
-            self._path = _Path(self)
         affected_nodes = self._path.next_path()
         for node in affected_nodes:
             node.stage.update_pbars()
+
+    def as_tree(self):
+        tree = Tree() # NOTE Store the tree structure for treelib.
+        tree.create_node(repr(self), id(self))
+
+        def helper(stage):
+            for substage in stage.substages:
+                tree.create_node(repr(substage), id(substage), parent=id(stage))
+                helper(substage)
+
+        helper(self)
+
+        sys.stdout = io.StringIO()
+        tree.show()
+        output = sys.stdout.getvalue()
+        sys.stdout = sys.__stdout__
+        return output
+    
+    @property
+    def current_stage(self):
+        return self._path.leaf_node
+    
+    @property
+    def finished(self):
+        return self._path.finished
+
+    def get_step(self, key):
+        return self._path.get_step(key)
+
+    def fix_schedule(self):
+        self._build_path()
 
 class Tracker:
 
     def __init__(self):
         self.clear_best()
         self._schedule = _Schedule()
+
+    @property
+    def schedule(self):
+        return self._schedule.as_tree()
 
     def add_stage(self, name, num_steps=1):
         return self._schedule.add_stage(name, num_steps=num_steps)
@@ -239,5 +299,14 @@ class Tracker:
     
     @property
     def current_stage(self):
-        pass
-        # TODO 
+        return self._schedule.current_stage
+    
+    @property
+    def finished(self):
+        return self._schedule.finished
+
+    def get(self, key):
+        return self._schedule.get_step(key)
+    
+    def fix_schedule(self):
+        self._schedule.fix_schedule()
