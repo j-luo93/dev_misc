@@ -2,10 +2,14 @@
 Modified from MUSE
 '''
 
-from colorlog import ColoredFormatter
-from datetime import timedelta
 import logging
 import time
+from datetime import timedelta
+from functools import wraps
+from inspect import signature
+
+from colorlog import ColoredFormatter
+
 
 class LogFormatter(ColoredFormatter):
 
@@ -88,23 +92,20 @@ def log_this(msg='', log_level='DEBUG', arg_list=None):
     def decorator(func):
         new_msg = msg or func.__name__
         new_arg_list = arg_list or list()
-        arg2pos = {a: i for i, a in enumerate(func.__code__.co_varnames)}
         log_func = lambda msg: logging.log(getattr(logging, log_level), msg)
         
+        @wraps(func)
         def wrapper(*args, **kwargs):
             log_func(f'*STARTING* {new_msg}')
-            if new_arg_list:
-                arg_msg = dict()
-                for a in new_arg_list:
-                    if a in kwargs:
-                        arg_msg[a] = kwargs[a]
-                    else:
-                        pos = arg2pos[a]
-                        if pos < len(args):
-                            arg_msg[a] = args[pos]
-                        else:
-                            arg_msg[a] = 'DEFAULT'
 
+            if new_arg_list:
+
+                func_sig = signature(func)
+                bound = func_sig.bind(*args, **kwargs)
+                bound.apply_defaults()
+                all_args = bound.arguments
+
+                arg_msg = {name: all_args[name] for name in new_arg_list}
                 log_func(f'*ARG_LIST* {arg_msg}')
 
             ret = func(*args, **kwargs)

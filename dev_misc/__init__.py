@@ -34,3 +34,4 @@ from .tracker import (
 from .metrics import (
                     Metric,
                     Metrics)
+from .tb2df import get_data
