@@ -8,18 +8,79 @@ from datetime import timedelta
 from functools import wraps
 from inspect import signature
 
-from colorlog import ColoredFormatter
+from colorlog import TTYColoredFormatter
 
+# From https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility.
+def addLoggingLevel(levelName, levelNum, methodName=None):
+    """
+    Comprehensively adds a new logging level to the `logging` module and the
+    currently configured logging class.
 
-class LogFormatter(ColoredFormatter):
+    `levelName` becomes an attribute of the `logging` module with the value
+    `levelNum`. `methodName` becomes a convenience method for both `logging`
+    itself and the class returned by `logging.getLoggerClass()` (usually just
+    `logging.Logger`). If `methodName` is not specified, `levelName.lower()` is
+    used.
 
-    def __init__(self, color=False):
-        self.colored = color
-        if self.colored:
-            fmt = '%(log_color)s%(levelname)s - %(time)s - %(elapsed)s at %(filename)s:%(lineno)d - %(message)s%(reset)s'
-        else:
-            fmt = '%(levelname)s - %(time)s - %(elapsed)s - %(message)s'
-        super(LogFormatter, self).__init__(fmt)
+    To avoid accidental clobberings of existing attributes, this method will
+    raise an `AttributeError` if the level name is already an attribute of the
+    `logging` module or if the method name is already present 
+
+    Example
+    -------
+    >>> addLoggingLevel('TRACE', logging.DEBUG - 5)
+    >>> logging.getLogger(__name__).setLevel("TRACE")
+    >>> logging.getLogger(__name__).trace('that worked')
+    >>> logging.trace('so did this')
+    >>> logging.TRACE
+    5
+
+    """
+    if not methodName:
+        methodName = levelName.lower()
+
+    if hasattr(logging, levelName):
+       raise AttributeError('{} already defined in logging module'.format(levelName))
+    if hasattr(logging, methodName):
+       raise AttributeError('{} already defined in logging module'.format(methodName))
+    if hasattr(logging.getLoggerClass(), methodName):
+       raise AttributeError('{} already defined in logger class'.format(methodName))
+
+    # This method was inspired by the answers to Stack Overflow post
+    # http://stackoverflow.com/q/2183233/2988730, especially
+    # http://stackoverflow.com/a/13638084/2988730
+    def logForLevel(self, message, *args, **kwargs):
+        if self.isEnabledFor(levelNum):
+            self._log(levelNum, message, args, **kwargs)
+    def logToRoot(message, *args, **kwargs):
+        logging.log(levelNum, message, *args, **kwargs)
+
+    logging.addLevelName(levelNum, levelName)
+    setattr(logging, levelName, levelNum)
+    setattr(logging.getLoggerClass(), methodName, logForLevel)
+    setattr(logging, methodName, logToRoot)
+
+addLoggingLevel('IMP', 25)
+
+class LogFormatter(TTYColoredFormatter):
+
+    def __init__(self, *args, **kwargs):#, color=False):
+        # self.colored = color
+        # if self.colored:
+        fmt = '%(log_color)s%(levelname)s - %(time)s - %(elapsed)s at %(filename)s:%(lineno)d - %(message)s'
+        # else:
+            # fmt = '%(levelname)s - %(time)s - %(elapsed)s - %(message)s'
+        super(LogFormatter, self).__init__(
+                                    fmt, 
+                                    log_colors={
+                                        'DEBUG':    'white',
+                                        'INFO':     'green',
+                                        'IMP':      'cyan',
+                                        'WARNING':  'yellow',
+                                        'ERROR':    'red',
+                                        'CRITICAL': 'red,bg_white'},
+                                    *args,
+                                    **kwargs)
         self.start_time = time.time()
 
     def format(self, record):
@@ -27,20 +88,20 @@ class LogFormatter(ColoredFormatter):
         if not hasattr(record, 'elapsed'):
             record.elapsed = timedelta(seconds=round(record.created - self.start_time))
             record.time = time.strftime('%x %X')
-            if self.colored:
-                prefix = "%s - %s - %s at %s:%d" % (
-                    record.levelname,
-                    record.time,
-                    record.elapsed,
-                    record.filename,
-                    record.lineno
-                )
-            else:
-                prefix = "%s - %s - %s" % (
-                    record.levelname,
-                    record.time,
-                    record.elapsed
-                )
+            # if self.colored:
+            prefix = "%s - %s - %s at %s:%d" % (
+                record.levelname,
+                record.time,
+                record.elapsed,
+                record.filename,
+                record.lineno
+            )
+            # else:
+            #     prefix = "%s - %s - %s" % (
+            #         record.levelname,
+            #         record.time,
+            #         record.elapsed
+            #     )
             message = record.getMessage()
             if not message.startswith('\n'): # If a message starts with a line break, we will keep the original line break without autoindentation. 
                 message = message.replace('\n', '\n' + ' ' * (len(prefix) + 3))
@@ -55,8 +116,7 @@ def create_logger(filepath=None, log_level='INFO'):
     Create a logger.
     """
     # create log formatter
-    colorlog_formatter = LogFormatter(color=True)
-    log_formatter = LogFormatter()
+    colorlog_formatter = LogFormatter()
 
     # create console handler and set level to info
     console_handler = logging.StreamHandler()
@@ -73,6 +133,7 @@ def create_logger(filepath=None, log_level='INFO'):
         # create file handler and set level to debug
         file_handler = logging.FileHandler(filepath, "a")
         file_handler.setLevel(log_level)
+        log_formatter = LogFormatter(stream=file_handler.stream)
         file_handler.setFormatter(log_formatter)
         logger.addHandler(file_handler)
 
