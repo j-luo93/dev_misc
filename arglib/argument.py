@@ -71,6 +71,9 @@ class Argument:
                 raise FormatError(f'Format wrong for short name {short_name}.')
 
         self._name = full_name[2:] 
+        
+        # Keep track of the last idx of an unparsed argument that this argument is parsed from.
+        self.last_idx = -1
 
         nargs = nargs or 1
         assert isinstance(nargs, int) or nargs == '+'
@@ -166,8 +169,15 @@ class _ArgumentView(Argument):
         try:
             return super().__getattribute__(key)
         except AttributeError:
-            arg = self._arg
+            arg = super().__getattribute__('_arg')
             return getattr(arg, key)
+
+    def __setattr__(self, key, value):
+        if key in ['_arg', '_value', '_name']: # These are the only true attributes for this view.
+            super().__setattr__(key, value)
+        else:
+            arg = self._arg
+            arg.__setattr__(key, value)
 
     @property
     def value(self):
@@ -188,6 +198,3 @@ class _ArgumentView(Argument):
             return self._arg is other._arg
         else:
             return self._arg is other
-    
-    def is_primary(self):
-        return self.primary

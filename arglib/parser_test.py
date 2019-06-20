@@ -147,3 +147,10 @@ class TestParser(TestCase):
         parser.parse_args()
         a = parser.get_argument('use_default')
         self.assertEqual(a, True)
+
+    def test_bool_order(self):
+        parser.add_argument('--use_default', '-ud', dtype=bool, default=False)
+        sys.argv = 'dummy.py --use_default --no_use_default -ud -no_ud'.split()
+        parser.parse_args()
+        a = parser.get_argument('use_default')
+        self.assertEqual(a, False)

@@ -133,10 +133,20 @@ class _ParserNode:
         return a
 
     def _update_arg(self, arg, un_arg):
-        if arg.is_view():
-            arg.use_this_view()
-        else:
-            arg.value = un_arg.value
+        """Update arg using un_arg, always taking the last un_arg if multiple un_arg's are mapped to the same arg.
+        Delete the un_arg afterwards.
+        
+        Args:
+            arg ([type]): [description]
+            un_arg ([type]): [description]
+        """ 
+        if un_arg.idx > arg.last_idx:
+            if arg.is_view():
+                arg.use_this_view()
+            else:
+                arg.value = un_arg.value
+            arg.last_idx = un_arg.idx
+        del self._cli_unparsed[un_arg.name]
 
     def _parse_one_cli_arg(self, un_arg):
         """Parse one CLI argument.
@@ -175,16 +185,13 @@ class _ParserNode:
         for p in prefixes:
             items += list(self._cli_unparsed.iter_prefix_items(p))
 
-        last_idx = None
+        if len(items) == 0:
+            return None
+
         for k, un_arg in items:
             double_check = self.get_argument(un_arg.name)
             assert double_check == arg, f'{double_check} : {arg}'
-            if last_idx is None or un_arg.idx > last_idx:
-                last_idx = un_arg.idx
-                self._update_arg(double_check, un_arg) # NOTE Use double_check here since this is the view that matches the un_arg.
-            del self._cli_unparsed[k]
-        if last_idx is None:
-            return None
+            self._update_arg(double_check, un_arg) # NOTE Use double_check here since this is the view that matches the un_arg.
         return arg
 
     def _parse_cfg_arg(self, name, value):
