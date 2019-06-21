@@ -115,11 +115,10 @@ def create_logger(filepath=None, log_level='INFO'):
     """
     Create a logger.
     """
-    # create log formatter
-    colorlog_formatter = LogFormatter()
-
     # create console handler and set level to info
     console_handler = logging.StreamHandler()
+    # create log formatter
+    colorlog_formatter = LogFormatter(stream=console_handler.stream)
     console_handler.setLevel(getattr(logging, log_level))
     console_handler.setFormatter(colorlog_formatter)
 
