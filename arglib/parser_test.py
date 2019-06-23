@@ -6,7 +6,7 @@ from . import parser
 
 
 class TestParser(TestCase):
-    
+
     def setUp(self):
         parser.clear()
         sys.argv = ['dummy.py']
@@ -31,13 +31,13 @@ class TestParser(TestCase):
             parser.get_argument('--option')
         with self.assertRaises(parser.MultipleMatchError):
             parser.get_argument('-o')
-    
+
     def test_value(self):
         a = parser.add_argument('--option', '-o', default=1, dtype=int)
         self.assertEqual(a, 1)
         a = 2
         self.assertEqual(a, 2)
-    
+
     def test_parse_args(self):
         parser.add_argument('--option1', '-o1', default=1, dtype=int)
         parser.add_argument('--option2', default='test')
@@ -65,6 +65,14 @@ class TestParser(TestCase):
         a = parser.get_argument('x')
         self.assertEqual(a, 1)
 
+    def test_ad_hoc_in_cfg_not_overridden_by_add_argument(self):
+        self._get_cfg_mock()
+        sys.argv = 'dummy.py -cfg Test -u'.split()
+        parser.parse_args()
+        parser.add_argument('--x', default=0, dtype=int)
+        a = parser.get_argument('x')
+        self.assertEqual(a, 1)
+
     def test_cfg_cli(self):
         self._get_cfg_mock()
         parser.add_argument('--x', default=0, dtype=int)
@@ -72,7 +80,7 @@ class TestParser(TestCase):
         parser.parse_args()
         a = parser.get_argument('x')
         self.assertEqual(a, 2)
-    
+
     def test_keywords(self):
         with self.assertRaises(parser.KeywordError):
             parser.add_argument('--help')
@@ -82,12 +90,12 @@ class TestParser(TestCase):
             parser.add_argument('--unsafe')
         with self.assertRaises(parser.KeywordError):
             parser.add_argument('-u')
-    
+
     def test_parsed(self):
         parser.parse_args()
         with self.assertRaises(parser.ParsedError):
             parser.add_argument('--x')
-    
+
     def _get_test_obj(self):
         class Test:
             parser.add_argument('--y', default=2)
@@ -131,7 +139,7 @@ class TestParser(TestCase):
         parser.add_argument('--y', default=1, dtype=int)
         a = parser.get_argument('y')
         self.assertEqual(a, 2)
-    
+
     def test_bool_negative(self):
         parser.add_argument('--use_default', dtype=bool, default=True)
         sys.argv = 'dummy.py --no_use_default'.split()

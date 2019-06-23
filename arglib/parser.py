@@ -5,8 +5,9 @@ from pprint import pformat
 
 from pytrie import SortedStringTrie
 
-from .argument import Argument, canonicalize, UnparsedArgument
-from .property import has_properties, add_properties, set_properties
+from .argument import (Argument, UnparsedArgument, UnparsedConfigArgument,
+                       canonicalize)
+from .property import add_properties, has_properties, set_properties
 
 
 class DuplicateError(Exception):
@@ -39,25 +40,25 @@ class _ParserNode:
         self._reset = False
         self._cli_unparsed = None
         self.add_argument('--unsafe', '-u', dtype=bool, force=True)
-    
+
     def reset(self):
         for a in self._args.values():
             a.reset()
         self._parsed = False
         self._reset = True
-    
+
     def __repr__(self):
         return self.command_name
-    
+
     def add_cfg_registry(self, registry):
         self._registry = registry
         self.add_argument('--config', '-cfg', dtype=str, default='', force=True)
-        
+
     def _check_keywords(self, name):
         # Raise error if keywords are used.
         if name in self._kwds:
             raise KeywordError(f'Keyword {name} cannot be used here')
-        
+
     def add_argument(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help='', force=False):
         if self._reset:
             return self._args[full_name]
@@ -74,7 +75,7 @@ class _ParserNode:
             raise DuplicateError(f'Full name {full_name} has already been defined.')
         if short_name and short_name in self._args:
             raise DuplicateError(f'Short name {short_name} has already been defined.')
-        
+
         self._args[full_name] = arg
         if short_name:
             self._args[short_name] = arg
@@ -89,17 +90,17 @@ class _ParserNode:
                 neg_name = f'-no_{short_name[1:]}'
                 self._arg_views[pos_name] = arg.view(pos_name, True)
                 self._arg_views[neg_name] = arg.view(neg_name, False)
-        
+
         if self._parsed and _ParserNode._unsafe:
             self._parse_one_arg(full_name)
         return arg
-    
+
     def help(self):
         print('Usage:')
         for k, a in self._args.items():
             print(' ' * 9, a)
         sys.exit(0)
-        
+
     def get_argument(self, name, view_ok=True):
         name = canonicalize(name)
         # Always go for views first.
@@ -112,7 +113,7 @@ class _ParserNode:
         if a is None:
             a = self._get_argument_from_trie(name, self._args)
         return a
-    
+
     def _get_argument_from_trie(self, name, trie):
         # Try exact match first.
         try:
@@ -135,22 +136,17 @@ class _ParserNode:
     def _update_arg(self, arg, un_arg):
         """Update arg using un_arg, always taking the last un_arg if multiple un_arg's are mapped to the same arg.
         Delete the un_arg afterwards.
-        
+
         Args:
             arg ([type]): [description]
             un_arg ([type]): [description]
-        """ 
-        if un_arg.idx > arg.last_idx:
-            if arg.is_view():
-                arg.use_this_view()
-            else:
-                arg.value = un_arg.value
-            arg.last_idx = un_arg.idx
+        """
+        arg.update(un_arg)
         del self._cli_unparsed[un_arg.name]
 
     def _parse_one_cli_arg(self, un_arg):
         """Parse one CLI argument.
-        
+
         Args:
             un_arg (UnparsedArgument): unparsed argument.
         """
@@ -159,13 +155,13 @@ class _ParserNode:
             return None
         self._update_arg(a, un_arg)
         return a
-    
+
     def _parse_one_arg(self, name):
         """Parse one declared argument.
-        
+
         Args:
             name (str): the name of the declared argument. Fuzzy match is allowed.
-        
+
         Returns:
             None or Argument: if an argument is updated, return that argument, otherwise return None.
         """
@@ -196,11 +192,17 @@ class _ParserNode:
 
     def _parse_cfg_arg(self, name, value):
         a = self.get_argument(name)
-        a.value = value
-        
+        if a is not None:
+            a.value = value
+        else:
+            # If it is not a argument right now, add it later.
+            name = f'--{name}'
+            unparsed_a = UnparsedConfigArgument(name, value) # NOTE Full name in cfg files.
+            self._cli_unparsed[name] = unparsed_a
+
     def parse_args(self):
         """
-        There are three ways of parsing args. 
+        There are three ways of parsing args.
         1. Provide the declared argument (and its full name as the key) and find matching CLI arguments (unparsed). This is handled by ``_parse_one_arg`` function.
         2. Provide the CLI arguments, and find matching declared arguments. This is handled by ``_parse_one_cli_arg`` function.
         3. Read from config file. Handled by ``_parse_cfg_arg``.
@@ -220,6 +222,12 @@ class _ParserNode:
             while j < len(argv) and not argv[j].startswith('-'):
                 value += (argv[j], )
                 j += 1
+            # Light processing of the value tuple.
+            if len(value) == 0:
+                value = None
+            elif len(value) == 1:
+                value = value[0]
+            # Add a new cli argument.
             unparsed_a = UnparsedArgument(name, value)
             self._cli_unparsed[name] = unparsed_a
             i = j
@@ -227,7 +235,7 @@ class _ParserNode:
         # Deal with help.
         if '--help' in argv or '-h' in argv:
             self.help()
-        
+
         # Switch on unsafe mode (arguments can be created ad-hoc).
         if any([self._parse_one_arg('--unsafe'), self._parse_one_arg('-u')]):
             _ParserNode._unsafe = True

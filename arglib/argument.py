@@ -1,7 +1,12 @@
 """
 Options or arguments are all referred to as arguments in this library. After all, options are just optinal arguments.
 """
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Tuple
+
 from .property import has_properties
+
 
 class FormatError(Exception):
     pass
@@ -22,38 +27,54 @@ def canonicalize(name):
     else:
         return name
 
+class Source(Enum):
+    CONFIG = 0
+    CLI = 1
+
+@dataclass(order=True, frozen=True)
+class Index:
+    """Store the index and source of an unparsed argument (from CLI or config files)."""
+    source: Source
+    idx: int
+
 @has_properties('value', 'name')
 class UnparsedArgument:
-    
+
     _IDX = 0
+    _SOURCE = Source.CLI
+
     def __init__(self, name, value):
         if _check_format(name) == 'plain':
             raise Exception('Should not have come here. Something wrong with the parser.')
-        assert isinstance(value, tuple)
-        if len(value) == 0:
-            value = None
-        elif len(value) == 1:
-            value = value[0]
         self._value = value
-        self._idx = UnparsedArgument._IDX
-        UnparsedArgument._IDX += 1
-    
+        cls = self.__class__
+        self._idx = Index(cls._SOURCE, cls._IDX)
+        cls._IDX += 1
+
     @property
     def idx(self):
         return self._idx
-    
+
     def __repr__(self):
         return f'UnparsedArgument({self.name})'
-    
+
     def __str__(self):
         return f'{self.name}: {self.value}'
+
+class UnparsedConfigArgument(UnparsedArgument):
+    """This is the class to represent unparsed argument in config files."""
+    _IDX = 0
+    _SOURCE = Source.CONFIG
+
+    def __repr__(self):
+        return f'UnparsedConfigArgument({self.name})'
 
 @has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'nargs')
 class Argument:
 
     def __init__(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help=''):
         """Construct an Argument object.
-        
+
         Args:
             full_name (str): full name of this argument.
             short_name (str, optional): short name for this argument. Defaults to None.
@@ -70,10 +91,10 @@ class Argument:
             if short_name is not None and short_name.startswith('-no_'):
                 raise FormatError(f'Format wrong for short name {short_name}.')
 
-        self._name = full_name[2:] 
-        
+        self._name = full_name[2:]
+
         # Keep track of the last idx of an unparsed argument that this argument is parsed from.
-        self.last_idx = -1
+        self.last_idx = None
 
         nargs = nargs or 1
         assert isinstance(nargs, int) or nargs == '+'
@@ -86,10 +107,10 @@ class Argument:
         if self.default is not None and dtype is None:
             # Use the type of the default.
             self._dtype = type(self.default)
-        
+
         # Store all views.
         self._views = list()
-        
+
     @property
     def name(self):
         return self._name
@@ -100,9 +121,17 @@ class Argument:
 
     def is_view(self):
         return False
-    
+
     def reset(self):
         self.value = self.default
+
+    def update(self, un_arg):
+        if self.last_idx is None or self.last_idx < un_arg.idx:
+            if self.is_view():
+                self.use_this_view()
+            else:
+                self.value = un_arg.value
+            self.last_idx = un_arg.idx
 
     @value.setter
     def value(self, new_value):
@@ -115,11 +144,11 @@ class Argument:
                     raise FormatError(f'nargs should not be a tuple with {new_value} for {self!r}.')
             elif self.nargs == 0:
                 if not isinstance(new_value, bool):
-                    raise ValueError(f'Can only assign True/False to bool argument.') 
+                    raise ValueError(f'Can only assign True/False to bool argument.')
             else:
                 if not isinstance(new_value, tuple) or len(new_value) != self.nargs:
                     raise FormatError(f'nargs mismatch with {new_value} for {self!r}.')
-            
+
         if self._dtype and new_value is not None:
             if isinstance(new_value, tuple):
                 new_value = tuple(self._dtype(v) for v in new_value)
@@ -138,22 +167,22 @@ class Argument:
         if self.default is not None:
             out += f' [DEFAULT = {self.default}]'
         return out
-        
+
     def __repr__(self):
         return f'Argument({self.name})'
-    
+
     def view(self, name, value):
-        value = self.dtype(value)        
+        value = self.dtype(value)
         ret = _ArgumentView(self, name, value)
         self._views.append(ret)
         return ret
-    
+
     def __eq__(self, other):
         if other.is_view():
             return self is other._arg
         else:
             return self is other
-    
+
     @property
     def views(self):
         return self._views
@@ -164,7 +193,7 @@ class _ArgumentView(Argument):
     def __init__(self, arg, name, value):
         self._arg = arg
         self._value = value
-    
+
     def __getattribute__(self, key):
         try:
             return super().__getattribute__(key)
@@ -182,17 +211,17 @@ class _ArgumentView(Argument):
     @property
     def value(self):
         return self._arg.value
-    
+
     @value.setter
     def value(self, new_value):
         self._arg.value = new_value
-    
+
     def use_this_view(self):
         self.value = self._value
 
     def is_view(self):
         return True
-    
+
     def __eq__(self, other):
         if other.is_view():
             return self._arg is other._arg
