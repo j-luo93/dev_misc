@@ -1,5 +1,8 @@
+from datetime import datetime
 import logging
+import os
 import sys
+import time
 from pathlib import Path
 from pprint import pformat
 
@@ -22,6 +25,28 @@ class KeywordError(Exception):
 class ParsedError(Exception):
     pass
 
+def get_log_dir(config, msg):
+    while True:
+        now = datetime.now()
+        date = now.strftime("%m-%d")
+        timestamp = now.strftime("%H:%M:%S")
+        name = list()
+        if config:
+            name.append(config)
+        if msg:
+            name.append(msg)
+        name.append(timestamp)
+        name = '-'.join(name)
+        log_dir = 'log/%s/%s' %(date, name)
+
+        try:
+            os.makedirs(log_dir)
+            break
+        except OSError:
+            time.sleep(1)
+            pass
+    return log_dir
+
 _NODES = dict()
 @has_properties('command_name')
 class _ParserNode:
@@ -35,11 +60,12 @@ class _ParserNode:
         self._args = SortedStringTrie()
         self._arg_views = SortedStringTrie() # This stores argument views for booleans.
         self._registry = None
-        self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg'}
+        self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg', '--log_dir', '-ld', '--msg', '-M'}
         self._parsed = False
         self._reset = False
         self._cli_unparsed = None
         self.add_argument('--unsafe', '-u', dtype=bool, force=True)
+        self.add_argument('--msg', '-M', dtype=str, force=True)
 
     def reset(self):
         for a in self._args.values():
@@ -244,15 +270,22 @@ class _ParserNode:
         # Use args in the cfg file as defaults.
         if self._registry is not None:
             a_cfg = self._parse_one_arg('--config')
-            cfg_cls = self._registry[a_cfg.value]
+            config = a_cfg.value
+            cfg_cls = self._registry[config]
             cfg = cfg_cls()
             default_args = vars(cfg)
             for name, v in default_args.items():
                 self._parse_cfg_arg(name, v)
+        else:
+            config = ''
 
         # Use CLI args to override all.
         for un_arg in self._cli_unparsed.values():
             self._parse_one_cli_arg(un_arg)
+
+        # Get log dir.
+        a = self.add_argument('--log_dir', '-ld', dtype=str, force=True)
+        a.value = get_log_dir(self.get_argument('config').value, self.get_argument('msg').value)
 
         self._parsed = True
         return self._args
