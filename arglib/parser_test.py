@@ -48,6 +48,7 @@ class TestParser(TestCase):
 
     def _get_cfg_mock(self):
         reg = MagicMock()
+
         def side_effect():
             class Test:
                 def __init__(self):
@@ -99,12 +100,13 @@ class TestParser(TestCase):
     def _get_test_obj(self):
         class Test:
             parser.add_argument('--y', default=2)
-            parser.add_argument('--m', default=(1, 2), dtype=int, nargs=2)
+            parser.add_argument('--z', default=(1, 2), dtype=int, nargs=2)
             parser.add_argument('--use_this', default=True, dtype=bool)
             parser.add_argument('--use_that', default=False, dtype=bool)
+
             def __init__(self):
                 self.y = parser.get_argument('y')
-                self.m = parser.get_argument('m')
+                self.z = parser.get_argument('z')
 
         return Test()
 
@@ -114,7 +116,7 @@ class TestParser(TestCase):
         parser.parse_args()
         obj = self._get_test_obj()
         self.assertEqual(obj.y, 2)
-        self.assertTupleEqual(obj.m, (1, 2))
+        self.assertTupleEqual(obj.z, (1, 2))
         a = parser.get_argument('use_this')
         self.assertEqual(a, True)
         a = parser.get_argument('use_that')
@@ -122,11 +124,11 @@ class TestParser(TestCase):
 
     def test_ad_hoc_in_class_overridden_by_cli(self):
         parser.add_argument('--x', default=1, dtype=int)
-        sys.argv = 'dummy.py -u --y 3 --m 3 4 --use_that --no_use_this'.split()
+        sys.argv = 'dummy.py -u --y 3 --z 3 4 --use_that --no_use_this'.split()
         parser.parse_args()
         obj = self._get_test_obj()
         self.assertEqual(obj.y, 3)
-        self.assertTupleEqual(obj.m, (3, 4))
+        self.assertTupleEqual(obj.z, (3, 4))
         a = parser.get_argument('use_this')
         self.assertEqual(a, False)
         a = parser.get_argument('use_that')

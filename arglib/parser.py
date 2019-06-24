@@ -16,14 +16,18 @@ from .property import add_properties, has_properties, set_properties
 class DuplicateError(Exception):
     pass
 
+
 class MultipleMatchError(Exception):
     pass
+
 
 class KeywordError(Exception):
     pass
 
+
 class ParsedError(Exception):
     pass
+
 
 def get_log_dir(config, msg):
     while True:
@@ -37,7 +41,7 @@ def get_log_dir(config, msg):
             name.append(msg)
         name.append(timestamp)
         name = '-'.join(name)
-        log_dir = 'log/%s/%s' %(date, name)
+        log_dir = 'log/%s/%s' % (date, name)
 
         try:
             os.makedirs(log_dir)
@@ -47,6 +51,7 @@ def get_log_dir(config, msg):
             pass
     return log_dir
 
+
 _NODES = dict()
 @has_properties('command_name')
 class _ParserNode:
@@ -54,18 +59,19 @@ class _ParserNode:
     Each node is (sub)command.
     '''
     _unsafe = False
+
     def __init__(self, command_name):
         assert command_name not in _NODES
         _NODES[command_name] = self
         self._args = SortedStringTrie()
-        self._arg_views = SortedStringTrie() # This stores argument views for booleans.
+        self._arg_views = SortedStringTrie()  # This stores argument views for booleans.
         self._registry = None
-        self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg', '--log_dir', '-ld', '--msg', '-M'}
+        self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg', '--log_dir', '-ld', '--msg', '-m'}
         self._parsed = False
         self._reset = False
         self._cli_unparsed = None
         self.add_argument('--unsafe', '-u', dtype=bool, force=True)
-        self.add_argument('--msg', '-M', dtype=str, force=True)
+        self.add_argument('--msg', '-m', dtype=str, force=True)
 
     def reset(self):
         for a in self._args.values():
@@ -213,7 +219,8 @@ class _ParserNode:
         for k, un_arg in items:
             double_check = self.get_argument(un_arg.name)
             assert double_check == arg, f'{double_check} : {arg}'
-            self._update_arg(double_check, un_arg) # NOTE Use double_check here since this is the view that matches the un_arg.
+            # NOTE Use double_check here since this is the view that matches the un_arg.
+            self._update_arg(double_check, un_arg)
         return arg
 
     def _parse_cfg_arg(self, name, value):
@@ -223,7 +230,7 @@ class _ParserNode:
         else:
             # If it is not a argument right now, add it later.
             name = f'--{name}'
-            unparsed_a = UnparsedConfigArgument(name, value) # NOTE Full name in cfg files.
+            unparsed_a = UnparsedConfigArgument(name, value)  # NOTE Full name in cfg files.
             self._cli_unparsed[name] = unparsed_a
 
     def parse_args(self):
@@ -285,10 +292,14 @@ class _ParserNode:
 
         # Get log dir.
         a = self.add_argument('--log_dir', '-ld', dtype=str, force=True)
-        a.value = get_log_dir(self.get_argument('config').value, self.get_argument('msg').value)
+        try:
+            a.value = get_log_dir(self.get_argument('config').value, self.get_argument('msg').value)
+        except (AttributeError, NameError):
+            pass
 
         self._parsed = True
         return self._args
+
 
 def _get_node(node):
     node = node or '_root'
@@ -296,14 +307,17 @@ def _get_node(node):
         _NODES['_root'] = _ParserNode('_root')
     return _NODES[node]
 
+
 def add_argument(full_name, short_name=None, default=None, dtype=None, node=None, nargs=None, help=''):
     node = _get_node(node)
     a = node.add_argument(full_name, short_name=short_name, default=default, dtype=dtype, nargs=nargs, help=help)
     return a.value
 
+
 def get_argument(name, node=None):
     node = _get_node(node)
-    return node.get_argument(name, view_ok=False).value # NOTE This public API should not allow views.
+    return node.get_argument(name, view_ok=False).value  # NOTE This public API should not allow views.
+
 
 def clear():
     """Clear all parser data."""
@@ -311,24 +325,29 @@ def clear():
     _NODES = dict()
     _ParserNode._unsafe = False
 
+
 def reset(node=None):
     node = _get_node(node)
     node.reset()
+
 
 def parse_args(node=None):
     node = _get_node(node)
     args = node.parse_args()
     return {a.name: a.value for k, a in sorted(args.items())}
 
+
 def add_cfg_registry(registry, node=None):
     node = _get_node(node)
     node.add_cfg_registry(registry)
+
 
 def use_arguments_as_properties(*names):
     def decorator(cls):
         cls = add_properties(*names)(cls)
 
         old_init = cls.__init__
+
         def new_init(self, *args, **kwargs):
             values = {name: get_argument(name) for name in names}
             self = set_properties(*names, **values)(self)

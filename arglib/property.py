@@ -2,14 +2,17 @@ import logging
 from functools import wraps
 from inspect import signature
 
+
 def add_properties(*names):
 
     def decorator(cls):
         for name in names:
-            setattr(cls, name, property(lambda self, name=name: getattr(self, f'_{name}'))) # NOTE The keyword is necessary.
+            # NOTE The keyword is necessary.
+            setattr(cls, name, property(lambda self, name=name: getattr(self, f'_{name}')))
         return cls
 
     return decorator
+
 
 def set_properties(*names, **values):
 
@@ -18,8 +21,9 @@ def set_properties(*names, **values):
             setattr(self, f'_{name}', values[name])
 
         return self
-        
+
     return decorator
+
 
 def has_properties(*names):
 

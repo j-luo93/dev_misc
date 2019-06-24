@@ -11,6 +11,7 @@ from .property import has_properties
 class FormatError(Exception):
     pass
 
+
 def _check_format(name):
     if name.startswith('--') and not name.startswith('---'):
         return 'full'
@@ -20,6 +21,7 @@ def _check_format(name):
         return 'plain'
     raise FormatError(f'Unrecognized format for name {name}')
 
+
 def canonicalize(name):
     fmt = _check_format(name)
     if fmt == 'plain':
@@ -27,15 +29,18 @@ def canonicalize(name):
     else:
         return name
 
+
 class Source(Enum):
     CONFIG = 0
     CLI = 1
+
 
 @dataclass(order=True, frozen=True)
 class Index:
     """Store the index and source of an unparsed argument (from CLI or config files)."""
     source: Source
     idx: int
+
 
 @has_properties('value', 'name')
 class UnparsedArgument:
@@ -61,6 +66,7 @@ class UnparsedArgument:
     def __str__(self):
         return f'{self.name}: {self.value}'
 
+
 class UnparsedConfigArgument(UnparsedArgument):
     """This is the class to represent unparsed argument in config files."""
     _IDX = 0
@@ -68,6 +74,7 @@ class UnparsedConfigArgument(UnparsedArgument):
 
     def __repr__(self):
         return f'UnparsedConfigArgument({self.name})'
+
 
 @has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'nargs')
 class Argument:
@@ -187,6 +194,7 @@ class Argument:
     def views(self):
         return self._views
 
+
 @has_properties('name')
 class _ArgumentView(Argument):
 
@@ -202,7 +210,7 @@ class _ArgumentView(Argument):
             return getattr(arg, key)
 
     def __setattr__(self, key, value):
-        if key in ['_arg', '_value', '_name']: # These are the only true attributes for this view.
+        if key in ['_arg', '_value', '_name']:  # These are the only true attributes for this view.
             super().__setattr__(key, value)
         else:
             arg = self._arg

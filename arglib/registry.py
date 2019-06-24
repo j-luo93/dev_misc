@@ -1,11 +1,14 @@
 from dataclasses import dataclass, make_dataclass
 
 _REGS = dict()
+
+
 def create_registry(name):
     assert name not in _REGS
     reg = Registry()
     _REGS[name] = reg
     return reg
+
 
 class Registry(dict):
 
