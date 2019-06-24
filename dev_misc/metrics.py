@@ -7,7 +7,7 @@ import torch
 from .map import Map
 
 def plain(value):
-    '''Convert tensors or numpy arrays to one scalar.''' 
+    '''Convert tensors or numpy arrays to one scalar.'''
     # Get to str, int or float first.
     if isinstance(value, torch.Tensor):
         assert value.numel() == 1
@@ -25,13 +25,13 @@ def plain(value):
     return value
 
 class Metric:
-    
+
     def __init__(self, name, value, weight, report_mean=True):
         self.name = name
         self._v = value
         self._w = weight
         self._report_mean = report_mean
-    
+
     def __hash__(self):
         return hash(self.name)
 
@@ -43,7 +43,7 @@ class Metric:
 
     def __repr__(self):
         return f'Metric(name={self.name}, report_mean={self.report_mean})'
-    
+
     def __eq__(self, other):
         return self.name == other.name
 
@@ -53,10 +53,10 @@ class Metric:
             assert self.report_mean == other.report_mean
             return Metric(self.name, self._v + other._v, self._w + other._w, report_mean=self.report_mean)
         else:
-            # NOTE This is useful for sum() call. 
+            # NOTE This is useful for sum() call.
             assert isinstance(other, (int, float)) and other == 0
             return self
-        
+
     def __radd__(self, other):
         return self.__add__(other)
 
@@ -68,7 +68,7 @@ class Metric:
     @property
     def value(self):
         return self._v
-    
+
     @property
     def weight(self):
         return self._w if self.report_mean else 'N/A'
@@ -83,10 +83,14 @@ class Metric:
             return self._v / self._w
         else:
             return 'N/A'
-    
+
     @property
     def total(self):
         return self._v
+
+    def clear(self):
+        self._v = 0
+        self._w = 0
 
 class Metrics:
 
@@ -94,7 +98,7 @@ class Metrics:
         # Check all of metrics are of the same type. Either all str or all Metric.
         types = set([type(m) for m in metrics])
         assert len(types) <= 1
-        
+
         if len(types) == 1:
             if types.pop() is str:
                 self._metrics = {k: Metric(k, 0, 0) for k in keys}
@@ -106,12 +110,12 @@ class Metrics:
     def __str__(self):
         out = '\n'.join([f'{k}: {m}' for k, m in self._metrics.items()])
         return out
-    
+
     def __repr__(self):
         return f'Metrics({", ".join(self._metrics.keys())})'
 
     def __add__(self, other):
-        assert isinstance(other, Metrics) 
+        assert isinstance(other, Metrics)
         union_keys = set(self._metrics.keys()) | set(other._metrics.keys())
         metrics = list()
         for k in union_keys:
@@ -125,7 +129,7 @@ class Metrics:
             return super().__getattribute__('_metrics')[key]
         except KeyError:
             raise AttributeError(f'Cannot find this attribute {key}')
-    
+
     def get_table(self, title=''):
         t = pt()
         if title:
@@ -136,3 +140,7 @@ class Metrics:
             t.add_row([k, plain(metric.value), plain(metric.weight), plain(metric.mean)])
         t.align = 'l'
         return t
+
+    def clear(self):
+        for m in self._metrics.values():
+            m.clear()
