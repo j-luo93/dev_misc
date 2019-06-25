@@ -76,10 +76,10 @@ class UnparsedConfigArgument(UnparsedArgument):
         return f'UnparsedConfigArgument({self.name})'
 
 
-@has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'nargs')
+@has_properties('full_name', 'short_name', 'default', 'dtype', 'help', 'nargs', 'unsafe')
 class Argument:
 
-    def __init__(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help=''):
+    def __init__(self, full_name, short_name=None, default=None, dtype=None, nargs=None, unsafe=False, help=''):
         """Construct an Argument object.
 
         Args:

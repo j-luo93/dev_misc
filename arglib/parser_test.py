@@ -164,3 +164,22 @@ class TestParser(TestCase):
         parser.parse_args()
         a = parser.get_argument('use_default')
         self.assertEqual(a, False)
+
+    def test_set_argument(self):
+        parser.add_argument('--x', default=1)
+        sys.argv = 'dummy.py'.split()
+        parser.parse_args()
+        parser.set_argument('x', 2)
+        a = parser.get_argument('x')
+        self.assertEqual(a, 2)
+
+    def test_set_parser(self):
+        parser.add_argument('--x', default=1)
+        parser.set_default_parser('another')
+        parser.add_argument('--y', default=2)
+        sys.argv = 'dummy.py'.split()
+        parser.parse_args()
+        with self.assertRaises(NameError):
+            a = parser.get_argument('x')
+        a = parser.get_argument('y')
+        self.assertEqual(a, 2)

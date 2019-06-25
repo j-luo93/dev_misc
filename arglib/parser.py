@@ -52,6 +52,7 @@ def get_log_dir(config, msg):
     return log_dir
 
 
+_DEFAULT_NODE = '_root'
 _NODES = dict()
 @has_properties('command_name')
 class _ParserNode:
@@ -68,16 +69,9 @@ class _ParserNode:
         self._registry = None
         self._kwds = {'--unsafe', '-u', '--help', '-h', '--config', '-cfg', '--log_dir', '-ld', '--msg', '-m'}
         self._parsed = False
-        self._reset = False
         self._cli_unparsed = None
         self.add_argument('--unsafe', '-u', dtype=bool, force=True)
         self.add_argument('--msg', '-m', dtype=str, force=True)
-
-    def reset(self):
-        for a in self._args.values():
-            a.reset()
-        self._parsed = False
-        self._reset = True
 
     def __repr__(self):
         return self.command_name
@@ -92,17 +86,17 @@ class _ParserNode:
             raise KeywordError(f'Keyword {name} cannot be used here')
 
     def add_argument(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help='', force=False):
-        if self._reset:
-            return self._args[full_name]
-
         if self._parsed and not _ParserNode._unsafe:
             raise ParsedError('Already parsed.')
+
+        unsafe = self._parsed and _ParserNode._unsafe
 
         if not force:
             self._check_keywords(full_name)
             self._check_keywords(short_name)
 
-        arg = Argument(full_name, short_name=short_name, default=default, dtype=dtype, nargs=nargs, help=help)
+        arg = Argument(full_name, short_name=short_name, default=default,
+                       dtype=dtype, nargs=nargs, unsafe=unsafe, help=help)
         if full_name in self._args:
             raise DuplicateError(f'Full name {full_name} has already been defined.')
         if short_name and short_name in self._args:
@@ -123,7 +117,7 @@ class _ParserNode:
                 self._arg_views[pos_name] = arg.view(pos_name, True)
                 self._arg_views[neg_name] = arg.view(neg_name, False)
 
-        if self._parsed and _ParserNode._unsafe:
+        if unsafe:
             self._parse_one_arg(full_name)
         return arg
 
@@ -145,6 +139,11 @@ class _ParserNode:
         if a is None:
             a = self._get_argument_from_trie(name, self._args)
         return a
+
+    def set_argument(self, name, value):
+        logging.warning(f'Setting {value} for argument {name}. This would change arguments globally')
+        a = self.get_argument(name)
+        a.value = value
 
     def _get_argument_from_trie(self, name, trie):
         # Try exact match first.
@@ -242,7 +241,7 @@ class _ParserNode:
         The second one is more natural, and we can easily go from left to right to make sure every CLI argument is handled.
         However, the first one is needed in unsafe mode, where a newly declared argument should be resolved.
         """
-        if self._parsed and not self._reset:
+        if self._parsed:
             raise ParsedError('Already parsed.')
 
         argv = sys.argv[1:]
@@ -302,10 +301,16 @@ class _ParserNode:
 
 
 def _get_node(node):
-    node = node or '_root'
-    if len(_NODES) == 0:
-        _NODES['_root'] = _ParserNode('_root')
+    global _DEFAULT_NODE
+    node = node or _DEFAULT_NODE
+    if node not in _NODES:
+        _NODES[node] = _ParserNode(node)
     return _NODES[node]
+
+
+def set_default_parser(name):
+    global _DEFAULT_NODE
+    _DEFAULT_NODE = name
 
 
 def add_argument(full_name, short_name=None, default=None, dtype=None, node=None, nargs=None, help=''):
@@ -319,16 +324,16 @@ def get_argument(name, node=None):
     return node.get_argument(name, view_ok=False).value  # NOTE This public API should not allow views.
 
 
+def set_argument(name, value, node=None):
+    node = _get_node(node)
+    node.set_argument(name, value)
+
+
 def clear():
     """Clear all parser data."""
     global _NODES
     _NODES = dict()
     _ParserNode._unsafe = False
-
-
-def reset(node=None):
-    node = _get_node(node)
-    node.reset()
 
 
 def parse_args(node=None):
