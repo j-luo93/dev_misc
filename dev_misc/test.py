@@ -17,11 +17,11 @@ patch = functools.partial(unittest.mock.patch, autospec=True)
 Mock = unittest.mock.MagicMock
 
 def untested(func):
-    
+
     def decorated(*args, **kwargs):
         logging.warning(f'This function {func.__name__} is untested.')
         return func(*args, **kwargs)
-        
+
     return decorated
 
 class TestCase(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestCase(unittest.TestCase):
 
     def assertMatrixShapeEqual(self, m1, m2):
         self.assertTupleEqual(m1.shape, m2.shape)
-        
+
     def assertHasShape(self, m, s):
         self.assertTupleEqual(m.shape, s)
 

@@ -6,6 +6,7 @@ import torch
 
 from .map import Map
 
+
 def plain(value):
     '''Convert tensors or numpy arrays to one scalar.'''
     # Get to str, int or float first.
@@ -23,6 +24,7 @@ def plain(value):
     else:
         raise NotImplementedError
     return value
+
 
 class Metric:
 
@@ -92,6 +94,7 @@ class Metric:
         self._v = 0
         self._w = 0
 
+
 class Metrics:
 
     def __init__(self, *metrics):
@@ -115,7 +118,8 @@ class Metrics:
         return f'Metrics({", ".join(self._metrics.keys())})'
 
     def __add__(self, other):
-        assert isinstance(other, Metrics)
+        if isinstance(other, Metric):
+            other = Metrics(other)
         union_keys = set(self._metrics.keys()) | set(other._metrics.keys())
         metrics = list()
         for k in union_keys:

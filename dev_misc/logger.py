@@ -10,6 +10,7 @@ from inspect import signature
 
 from colorlog import TTYColoredFormatter
 
+
 # From https://stackoverflow.com/questions/2183233/how-to-add-a-custom-loglevel-to-pythons-logging-facility.
 def addLoggingLevel(levelName, levelNum, methodName=None):
     """
@@ -24,7 +25,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 
     To avoid accidental clobberings of existing attributes, this method will
     raise an `AttributeError` if the level name is already an attribute of the
-    `logging` module or if the method name is already present 
+    `logging` module or if the method name is already present
 
     Example
     -------
@@ -40,11 +41,11 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
         methodName = levelName.lower()
 
     if hasattr(logging, levelName):
-       raise AttributeError('{} already defined in logging module'.format(levelName))
+        raise AttributeError('{} already defined in logging module'.format(levelName))
     if hasattr(logging, methodName):
-       raise AttributeError('{} already defined in logging module'.format(methodName))
+        raise AttributeError('{} already defined in logging module'.format(methodName))
     if hasattr(logging.getLoggerClass(), methodName):
-       raise AttributeError('{} already defined in logger class'.format(methodName))
+        raise AttributeError('{} already defined in logger class'.format(methodName))
 
     # This method was inspired by the answers to Stack Overflow post
     # http://stackoverflow.com/q/2183233/2988730, especially
@@ -52,6 +53,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
     def logForLevel(self, message, *args, **kwargs):
         if self.isEnabledFor(levelNum):
             self._log(levelNum, message, args, **kwargs)
+
     def logToRoot(message, *args, **kwargs):
         logging.log(levelNum, message, *args, **kwargs)
 
@@ -60,27 +62,25 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
     setattr(logging.getLoggerClass(), methodName, logForLevel)
     setattr(logging, methodName, logToRoot)
 
+
 addLoggingLevel('IMP', 25)
+
 
 class LogFormatter(TTYColoredFormatter):
 
-    def __init__(self, *args, **kwargs):#, color=False):
-        # self.colored = color
-        # if self.colored:
+    def __init__(self, *args, **kwargs):  # , color=False):
         fmt = '%(log_color)s%(levelname)s - %(time)s - %(elapsed)s at %(filename)s:%(lineno)d - %(message)s'
-        # else:
-            # fmt = '%(levelname)s - %(time)s - %(elapsed)s - %(message)s'
         super(LogFormatter, self).__init__(
-                                    fmt, 
-                                    log_colors={
-                                        'DEBUG':    'white',
-                                        'INFO':     'green',
-                                        'IMP':      'cyan',
-                                        'WARNING':  'yellow',
-                                        'ERROR':    'red',
-                                        'CRITICAL': 'red,bg_white'},
-                                    *args,
-                                    **kwargs)
+            fmt,
+            log_colors={
+                'DEBUG': 'white',
+                'INFO': 'green',
+                'IMP': 'cyan',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'red,bg_white'},
+            *args,
+            **kwargs)
         self.start_time = time.time()
 
     def format(self, record):
@@ -96,17 +96,12 @@ class LogFormatter(TTYColoredFormatter):
                 record.filename,
                 record.lineno
             )
-            # else:
-            #     prefix = "%s - %s - %s" % (
-            #         record.levelname,
-            #         record.time,
-            #         record.elapsed
-            #     )
             message = record.getMessage()
-            if not message.startswith('\n'): # If a message starts with a line break, we will keep the original line break without autoindentation. 
+            # If a message starts with a line break, we will keep the original line break without autoindentation.
+            if not message.startswith('\n'):
                 message = message.replace('\n', '\n' + ' ' * (len(prefix) + 3))
             record.msg = message
-            record.args = () # NOTE avoid evaluating the message again duing getMessage call.
+            record.args = ()  # NOTE avoid evaluating the message again duing getMessage call.
         x = super(LogFormatter, self).format(record)
         return x
 
@@ -143,7 +138,8 @@ def create_logger(filepath=None, log_level='INFO'):
 
     return logger
 
-def log_this(msg='', log_level='DEBUG', arg_list=None):
+
+def log_this(log_level='DEBUG', msg='', arg_list=None):
     """
     A decorator that logs the functionality, the beginning and the end of the function.
     It can optionally print out arg values in arg_list.
@@ -152,8 +148,8 @@ def log_this(msg='', log_level='DEBUG', arg_list=None):
     def decorator(func):
         new_msg = msg or func.__name__
         new_arg_list = arg_list or list()
-        log_func = lambda msg: logging.log(getattr(logging, log_level), msg)
-        
+        def log_func(msg): return logging.log(getattr(logging, log_level), msg)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             log_func(f'*STARTING* {new_msg}')
@@ -175,6 +171,7 @@ def log_this(msg='', log_level='DEBUG', arg_list=None):
         return wrapper
 
     return decorator
+
 
 def log_pp(obj):
     '''
