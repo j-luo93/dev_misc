@@ -1,8 +1,8 @@
-from datetime import datetime
 import logging
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from pprint import pformat
 
@@ -291,10 +291,12 @@ class _ParserNode:
 
         # Get log dir.
         a = self.add_argument('--log_dir', '-ld', dtype=str, force=True)
-        try:
-            a.value = get_log_dir(self.get_argument('config').value, self.get_argument('msg').value)
-        except (AttributeError, NameError):
-            pass
+        def try_get_value(name):
+            try:
+                return self.get_argument(name).value
+            except (AttributeError, NameError):
+                return None
+        a.value = get_log_dir(try_get_value('config'), try_get_value('msg'))
 
         self._parsed = True
         return self._args
