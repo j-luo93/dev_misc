@@ -15,6 +15,11 @@ from .metrics import Metrics, plain
 _manager = enlighten.get_manager()
 _stage_names = set()
 
+def clear_stages():
+    global _manager
+    global _stage_names
+    _manager = enlighten.get_manager()
+    _stage_names = set()
 
 def _check_name(name):
     assert name not in _stage_names
