@@ -51,6 +51,10 @@ def get_log_dir(config, msg):
             pass
     return log_dir
 
+def handle_error(error):
+    global _TEST
+    if not _TEST:
+        raise error
 
 _DEFAULT_NODE = '_root'
 _NODES = dict()
@@ -87,7 +91,7 @@ class _ParserNode:
 
     def add_argument(self, full_name, short_name=None, default=None, dtype=None, nargs=None, help='', force=False):
         if self._parsed and not _ParserNode._unsafe:
-            raise ParsedError('Already parsed.')
+            handle_error(ParsedError('Already parsed.'))
 
         unsafe = self._parsed and _ParserNode._unsafe
 
@@ -98,9 +102,9 @@ class _ParserNode:
         arg = Argument(full_name, short_name=short_name, default=default,
                        dtype=dtype, nargs=nargs, unsafe=unsafe, help=help)
         if full_name in self._args:
-            raise DuplicateError(f'Full name {full_name} has already been defined.')
+            handle_error(DuplicateError(f'Full name {full_name} has already been defined.'))
         if short_name and short_name in self._args:
-            raise DuplicateError(f'Short name {short_name} has already been defined.')
+            handle_error(DuplicateError(f'Short name {short_name} has already been defined.'))
 
         self._args[full_name] = arg
         if short_name:
@@ -242,7 +246,7 @@ class _ParserNode:
         However, the first one is needed in unsafe mode, where a newly declared argument should be resolved.
         """
         if self._parsed:
-            raise ParsedError('Already parsed.')
+            handle_error(ParsedError('Already parsed.'))
 
         argv = sys.argv[1:]
         self._cli_unparsed = SortedStringTrie()
@@ -336,6 +340,12 @@ def clear():
     global _NODES
     _NODES = dict()
     _ParserNode._unsafe = False
+
+_TEST = False
+
+def test_mode(flag=True):
+    global _TEST
+    _TEST = flag
 
 
 def parse_args(node=None):
