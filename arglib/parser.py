@@ -29,6 +29,10 @@ class ParsedError(Exception):
     pass
 
 
+class NArgsError(Exception):
+    pass
+
+
 def get_log_dir(config, msg):
     while True:
         now = datetime.now()
@@ -51,10 +55,12 @@ def get_log_dir(config, msg):
             pass
     return log_dir
 
+
 def handle_error(error):
     global _TEST
     if not _TEST:
         raise error
+
 
 _DEFAULT_NODE = '_root'
 _NODES = dict()
@@ -134,6 +140,7 @@ class _ParserNode:
     def get_argument(self, name, view_ok=True):
         name = canonicalize(name)
         # Always go for views first.
+        # TODO Greedy decoding might result in conflict for arguments that are added after parse_args. Need to recheck the parsed?
         a = None
         if view_ok:
             try:
@@ -142,6 +149,14 @@ class _ParserNode:
                 pass
         if a is None:
             a = self._get_argument_from_trie(name, self._args)
+        else:
+            # Need to check that there isn't another match in self._args.
+            try:
+                a_normal = self._get_argument_from_trie(name, self._args)
+            except NameError:
+                a_normal = None
+            if a_normal is not None and a_normal != a:
+                raise MultipleMatchError(f'Found multiple matches for "{name}".')
         return a
 
     def set_argument(self, name, value):
@@ -159,7 +174,7 @@ class _ParserNode:
         # Try fuzzy match.
         a = trie.values(prefix=name)
         if len(a) > 1:
-            raise MultipleMatchError('Found multiple matches.')
+            raise MultipleMatchError(f'Found multiple matches for "{name}".')
         elif len(a) == 0:
             if _ParserNode._unsafe:
                 return None
@@ -188,6 +203,8 @@ class _ParserNode:
         a = self.get_argument(un_arg.name)
         if a is None:
             return None
+        if not self._check_nargs(a, un_arg.value):
+            raise NArgsError(f'nargs not matched for "{a.name}" from "{un_arg.value}".')
         self._update_arg(a, un_arg)
         return a
 
@@ -225,6 +242,14 @@ class _ParserNode:
             # NOTE Use double_check here since this is the view that matches the un_arg.
             self._update_arg(double_check, un_arg)
         return arg
+
+    def _check_nargs(self, arg, value):
+        if arg.nargs == 0:
+            return value is None
+        elif arg.nargs == 1:
+            return value is not None and not isinstance(value, tuple)
+        else:
+            return isinstance(value, tuple) and len(value) == arg.nargs
 
     def _parse_cfg_arg(self, name, value):
         a = self.get_argument(name)
@@ -295,6 +320,7 @@ class _ParserNode:
 
         # Get log dir.
         a = self.add_argument('--log_dir', '-ld', dtype=str, force=True)
+
         def try_get_value(name):
             try:
                 return self.get_argument(name).value
@@ -341,7 +367,9 @@ def clear():
     _NODES = dict()
     _ParserNode._unsafe = False
 
+
 _TEST = False
+
 
 def test_mode(flag=True):
     global _TEST

@@ -167,7 +167,6 @@ class TestParser(TestCase):
 
     def test_set_argument(self):
         parser.add_argument('--x', default=1)
-        sys.argv = 'dummy.py'.split()
         parser.parse_args()
         parser.set_argument('x', 2)
         a = parser.get_argument('x')
@@ -177,9 +176,23 @@ class TestParser(TestCase):
         parser.add_argument('--x', default=1)
         parser.set_default_parser('another')
         parser.add_argument('--y', default=2)
-        sys.argv = 'dummy.py'.split()
         parser.parse_args()
         with self.assertRaises(NameError):
             a = parser.get_argument('x')
         a = parser.get_argument('y')
         self.assertEqual(a, 2)
+
+    def test_potential_conflicting_args(self):
+        parser.add_argument('--xyz', default=False, dtype=bool)
+        parser.add_argument('--xy', default=1, dtype=int)
+        sys.argv = 'dummy.py --x'.split()
+        with self.assertRaises(parser.MultipleMatchError):
+            parser.parse_args()
+
+    def test_nargs(self):
+        parser.add_argument('--xy', default=1, dtype=int)
+        sys.argv = 'dummy.py --x'.split()
+        with self.assertRaises(parser.NArgsError):
+            parser.parse_args()
+
+    

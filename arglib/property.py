@@ -4,6 +4,7 @@ from inspect import signature
 
 
 def add_properties(*names):
+    """Add properties as methods to classes."""
 
     def decorator(cls):
         for name in names:
@@ -15,6 +16,7 @@ def add_properties(*names):
 
 
 def set_properties(*names, **values):
+    """Set a private variable and use it as a property for an instance."""
 
     def decorator(self):
         for name in names:
