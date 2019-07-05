@@ -9,11 +9,13 @@ from treelib import Tree
 
 from arglib import has_properties
 
+from .curriculum_pbar import CurriculumPBar
 from .logger import log_pp
 from .metrics import Metrics, plain
 
-_manager = enlighten.get_manager()
+_manager = enlighten.get_manager(counter_class=CurriculumPBar)
 _stage_names = set()
+
 
 def clear_stages():
     global _manager
@@ -21,14 +23,10 @@ def clear_stages():
     _manager = enlighten.get_manager()
     _stage_names = set()
 
+
 def _check_name(name):
     assert name not in _stage_names
     _stage_names.add(name)
-
-
-def _reset_pbar(pbar):
-    pbar.count = 0
-    pbar.start = time.time()
 
 
 @has_properties('name', 'num_steps', 'parent')
@@ -43,38 +41,32 @@ class _Stage:
             self.add_pbar(name, total=self.num_steps)
 
     def update_pbars(self):
-        for pbar in self._pbars.values():
-            if pbar.total == pbar.count:
-                _reset_pbar(pbar)
+        to_remove = list()
+        for name, pbar in self._pbars.items():
             pbar.update()
+            if pbar.finished:
+                to_remove.append((name, pbar))
+        for name, pbar in to_remove:
+            pbar.close()
+            del self._pbars[name]
 
-    def reset_pbars(self, recursive=False):
-        for pbar in self._pbars.values():
-            _reset_pbar(pbar)
-        if recursive:
-            for substage in self.substages:
-                substage.reset_pbars(recursive=True)
-
-    def add_pbar(self, name, total=None, unit='samples'):
+    def add_pbar(self, name, total=None, once=False, unit='samples'):
         if name in self._pbars:
             raise NameError(f'Name {name} already exists.')
         pbar = _manager.counter(
+            once=once,
             desc=name,
             total=total,
             unit=unit,
             leave=False)
         pbar.refresh()
         self._pbars[name] = pbar
+        return pbar
 
     def add_stage(self, name, num_steps=1):
         stage = _Stage(name, num_steps=num_steps, parent=self)
         self.substages.append(stage)
         return stage
-
-    # def adjoin_stage(self, stage):
-    #     assert isinstance(stage, _Stage)
-    #     self.substages.append(stage)
-    #     return self
 
     def __str__(self):
         return f'"{self.name}"'
@@ -377,6 +369,3 @@ class Tracker:
 
     def fix_schedule(self):
         self._schedule.fix_schedule()
-
-    def reset_pbars(self):
-        self._schedule.reset_pbars(recursive=True)
