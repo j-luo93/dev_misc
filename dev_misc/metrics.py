@@ -1,8 +1,8 @@
 import logging
 
-from prettytable import PrettyTable as pt
 import numpy as np
 import torch
+from prettytable import PrettyTable as pt
 
 from .map import Map
 
@@ -118,6 +118,8 @@ class Metrics:
         return f'Metrics({", ".join(self._metrics.keys())})'
 
     def __add__(self, other):
+        if other is None:  # Allow `None + metrics`.
+            return self
         if isinstance(other, Metric):
             other = Metrics(other)
         union_keys = set(self._metrics.keys()) | set(other._metrics.keys())
@@ -127,6 +129,9 @@ class Metrics:
             m2 = other._metrics.get(k, 0)
             metrics.append(m1 + m2)
         return Metrics(*metrics)
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
     def __getattr__(self, key):
         try:

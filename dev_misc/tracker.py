@@ -277,7 +277,7 @@ class Tracker:
     def __init__(self, name):
         self.clear_best()
         self._schedule = _Schedule(name)
-        self._metrics = Metrics()
+        self.clear_metrics()
 
     def schedule_as_tree(self):
         return self._schedule.as_tree()
@@ -304,7 +304,7 @@ class Tracker:
         log_pp(self._metrics.get_table(title=f'Epoch: {epoch}'))
 
     def clear_metrics(self):
-        self._metrics.clear()
+        self._metrics = Metrics()
 
     def update_metrics(self, metrics):
         self._metrics += metrics

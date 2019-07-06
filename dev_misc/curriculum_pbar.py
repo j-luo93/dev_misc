@@ -1,4 +1,5 @@
 import time
+from functools import wraps
 
 from enlighten import Counter
 
@@ -12,6 +13,56 @@ def get_c_prop(name):
         return getattr(CurriculumPBar, name)
     except AttributeError:
         return None
+
+
+def run_cond_c_prop(name, cond, default=None):
+    assert isinstance(cond, bool)
+
+    def decorator(func):
+
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            c_prop = _get_bool_c_prop(name)
+            if c_prop == cond:
+                return func(*args, **kwargs)
+            else:
+                return default
+
+        return wrapped
+
+    return decorator
+
+
+def run_if_c_prop(name, default=None):
+    return run_cond_c_prop(name, True, default=default)
+
+
+def run_unless_c_prop(name, default=None):
+    return run_cond_c_prop(name, False, default=default)
+
+
+def _get_bool_c_prop(name):
+    c_prop = get_c_prop(name)
+    assert isinstance(c_prop, bool)
+    return c_prop
+
+
+def context_if_c_prop(name, context):
+
+    def decorator(func):
+
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            c_prop = _get_bool_c_prop(name)
+            if c_prop:
+                with context():
+                    return func(*args, **kwargs)
+            else:
+                return func(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
 
 
 class CurriculumPBar(Counter):
