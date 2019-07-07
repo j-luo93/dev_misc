@@ -7,7 +7,7 @@ class TestCurriculumProperty(TestCase):
 
     def setUp(self):
         clear_c_props()
-        
+
         class Test:
             prop = CurriculumProperty('prop')
 
@@ -29,7 +29,7 @@ class TestCurriculumProperty(TestCase):
     def test_callback(self):
         pbar = CurriculumPBar(total=10)
         pbar.add_property('prop')
-        pbar.add_inc_one_callback('prop')
+        pbar.add_inc_one_callback('prop', 'after')
         pbar.prop = 1
         for _ in range(10):
             pbar.update()

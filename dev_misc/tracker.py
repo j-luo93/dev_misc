@@ -9,35 +9,32 @@ from treelib import Tree
 
 from arglib import has_properties
 
-from .curriculum_pbar import CurriculumPBar
+from .curriculum_pbar import CurriculumPBar, get_c_pbar
 from .logger import log_pp
 from .metrics import Metrics, plain
 
 _manager = enlighten.get_manager(counter_class=CurriculumPBar)
-_stage_names = set()
+_STAGE_NAMES = dict()
 
 
 def clear_stages():
     global _manager
-    global _stage_names
+    global _STAGE_NAMES
     _manager = enlighten.get_manager()
-    _stage_names = set()
-
-
-def _check_name(name):
-    assert name not in _stage_names
-    _stage_names.add(name)
+    _STAGE_NAMES = dict()
 
 
 @has_properties('name', 'num_steps', 'parent')
 class _Stage:
 
-    def __init__(self, name, num_steps=1, parent=None):
-        _check_name(name)
+    def __init__(self, name, num_steps=1, parent=None, pbar=True):
+        if name in _STAGE_NAMES:
+            raise NameError(f'Stage name "{name}" already exists.')
+        _STAGE_NAMES[name] = self
 
         self._pbars = dict()
         self.substages = list()
-        if self.num_steps > 1:
+        if pbar:
             self.add_pbar(name, total=self.num_steps)
 
     def update_pbars(self):
@@ -50,10 +47,26 @@ class _Stage:
             pbar.close()
             del self._pbars[name]
 
+    def in_stage(self, stage_name):
+        if self.name == stage_name:
+            return True
+        if self.parent is not None:
+            return self.parent.in_stage(stage_name)
+        return False
+
+    @property
+    def pbar(self):
+        return self._pbars[self.name]
+
+    def reset_pbars(self):
+        for pbar in self._pbars.values():
+            pbar.reset()
+        for substage in self.substages:
+            substage.reset_pbars()
+
     def add_pbar(self, name, total=None, once=False, unit='samples'):
-        if name in self._pbars:
-            raise NameError(f'Name {name} already exists.')
         pbar = _manager.counter(
+            name=name,
             once=once,
             desc=name,
             total=total,
@@ -62,6 +75,10 @@ class _Stage:
         pbar.refresh()
         self._pbars[name] = pbar
         return pbar
+
+    def share_pbar(self, pbar):
+        assert pbar.desc not in self._pbars
+        self._pbars[pbar.desc] = pbar
 
     def add_stage(self, name, num_steps=1):
         stage = _Stage(name, num_steps=num_steps, parent=self)
@@ -76,13 +93,13 @@ class _Stage:
 
     def load_state_dict(self, state_dict):
         missing = list()
-        for name, pbar_meta in state_dict['_pbars'].items():
+        for name, pbar_state in state_dict['_pbars'].items():
             try:
                 pbar = self._pbars[name]
             except KeyError:
                 missing.append(f'pbar:{name}')
                 continue
-            pbar.count = pbar_meta['count']
+            pbar.load_state_dict(pbar_state)
             pbar.refresh()
         for s1, s2 in zip(self.substages, state_dict['_stages']):
             s1.load_state_dict(s2)
@@ -92,7 +109,7 @@ class _Stage:
     def state_dict(self):
         ret = dict()
         # NOTE pbar itself cannot be serialized for some reason.
-        ret['_pbars'] = {name: {'count': pbar.count} for name, pbar in self._pbars.items()}
+        ret['_pbars'] = {name: pbar.state_dict() for name, pbar in self._pbars.items()}
         stage_ret = list()
         for s in self.substages:
             stage_ret.append(s.state_dict())
@@ -120,6 +137,16 @@ class _Node:
             last = last_step
         return last
 
+    def state_dict(self):
+        return {'step': self.step, 'substage_idx': self.substage_idx, 'stage_name': self.stage.name}
+
+    @classmethod
+    def from_state_dict(cls, state_dict):
+        stage = _STAGE_NAMES[state_dict['stage_name']]
+        step = state_dict['step']
+        substage_idx = state_dict['substage_idx']
+        return _Node(stage, step, substage_idx)
+
     def next_node(self):
         """Return whether next node will increment the step."""
         if self.stage.substages:
@@ -139,6 +166,9 @@ class _Node:
     def __repr__(self):
         return f'Node(stage={str(self.stage)}, step={self.step}, substage_idx={self.substage_idx})'
 
+    def in_stage(self, stage_name):
+        return self.stage.in_stage(stage_name)
+
 
 class _Path:
 
@@ -148,6 +178,22 @@ class _Path:
         self._schedule = schedule
         self._get_first_path(self._schedule)
         self._finished = False
+
+    def state_dict(self):
+        ret = {'_finished': self._finished}
+        nodes_ret = list()
+        for node in self._nodes:
+            nodes_ret.append(node.state_dict())
+        ret['_nodes'] = nodes_ret
+        return ret
+
+    def load_state_dict(self, state_dict):
+        self._finished = state_dict['_finished']
+        self._nodes = list()
+        self._nodes_dict = dict()
+        for state in state_dict['_nodes']:
+            node = _Node.from_state_dict(state)
+            self._add(node)
 
     def _add(self, node):
         # Check that this is a valid extension of the original path.
@@ -226,8 +272,18 @@ class _Path:
 class _Schedule(_Stage):
 
     def __init__(self, name):
-        super().__init__(name, num_steps=1)
+        super().__init__(name, num_steps=1, pbar=False)
         self._path = None
+
+    def state_dict(self):
+        ret = super().state_dict()
+        ret['_path'] = self._path.state_dict()
+        return ret
+
+    def load_state_dict(self, state_dict):
+        self._path.load_state_dict(state_dict['_path'])
+        del state_dict['_path']
+        super().load_state_dict(state_dict)
 
     def _build_path(self):
         self._path = _Path(self)
@@ -267,9 +323,7 @@ class _Schedule(_Stage):
 
     def fix_schedule(self):
         self._build_path()
-
-    def reset(self):
-        self._build_path()
+        self.reset_pbars()
 
 
 class Tracker:
@@ -369,3 +423,6 @@ class Tracker:
 
     def fix_schedule(self):
         self._schedule.fix_schedule()
+
+    def get_pbar(self, name):
+        return get_c_pbar(name)
