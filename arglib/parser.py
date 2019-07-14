@@ -248,6 +248,8 @@ class _ParserNode:
             return value is None
         elif arg.nargs == 1:
             return value is not None and not isinstance(value, tuple)
+        elif arg.nargs == '+':
+            return (isinstance(value, tuple) and len(value) > 0) or not isinstance(value, tuple)
         else:
             return isinstance(value, tuple) and len(value) == arg.nargs
 
