@@ -64,6 +64,7 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 
 
 addLoggingLevel('IMP', 25)
+addLoggingLevel('TRACE', 5)
 
 
 class LogFormatter(TTYColoredFormatter):
@@ -148,7 +149,9 @@ def log_this(log_level='DEBUG', msg='', arg_list=None):
     def decorator(func):
         new_msg = msg or func.__name__
         new_arg_list = arg_list or list()
-        def log_func(msg): return logging.log(getattr(logging, log_level), msg)
+
+        def log_func(msg):
+            return logging.log(getattr(logging, log_level), msg)
 
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -160,8 +163,7 @@ def log_this(log_level='DEBUG', msg='', arg_list=None):
                 bound = func_sig.bind(*args, **kwargs)
                 bound.apply_defaults()
                 all_args = bound.arguments
-
-                arg_msg = {name: all_args[name] for name in new_arg_list}
+                arg_msg = {name: eval(name, all_args) for name in new_arg_list}
                 log_func(f'*ARG_LIST* {arg_msg}')
 
             ret = func(*args, **kwargs)

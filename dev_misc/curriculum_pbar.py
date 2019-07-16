@@ -28,7 +28,9 @@ def run_cond_c_prop(name, cond, default=None):
             if c_prop == cond:
                 return func(*args, **kwargs)
             else:
-                return default
+                if default is None:
+                    return None
+                return default()
 
         return wrapped
 
@@ -65,7 +67,6 @@ def context_if_c_prop(name, context):
         return wrapped
 
     return decorator
-
 
 
 @has_properties('name')
@@ -108,6 +109,9 @@ class CurriculumPBar(Counter):
         return self._once
 
     def add_callback(self, callback, when):
+        if when == 'initial': # TODO This shouldn't be considered as a callback, right?
+            callback()
+            return
         callbacks = self._pre_callbacks if when == 'before' else self._post_callbacks
         callbacks.append(callback)
 
@@ -117,9 +121,18 @@ class CurriculumPBar(Counter):
             setattr(self, name, value + 1)
         self.add_callback(inc_one, when)
 
+    def add_anneal_callback(self, name, decay, when, min_value=None):
+        @log_this('IMP', msg='Annealing')
+        def anneal():
+            value = getattr(self, name)
+            new_value = value * decay
+            if min_value is not None:
+                new_value = max(min_value, new_value)
+            setattr(self, name, new_value)
+        self.add_callback(anneal, when)
+
     def add_set_value_callback(self, name, value, when):
         def set_value():
-            logging.imp(f'Setting "{name}" to "{value}".')
             setattr(self, name, value)
         self.add_callback(set_value, when)
 
@@ -161,12 +174,14 @@ def clear_c_props():
             delattr(CurriculumPBar, name)
     _C_PROP_NAMES = dict()
 
+
 _C_PBAR_NAMES = dict()
 
 
 def clear_c_pbars():
     global _C_PBAR_NAMES
     _C_PBAR_NAMES = dict()
+
 
 def get_c_pbar(name):
     return _C_PBAR_NAMES[name]
@@ -186,7 +201,7 @@ class CurriculumProperty:
     def __get__(self, instance, owner):
         return self._value
 
-    @log_this('DEBUG')
+    @log_this('IMP', msg='Setting curriculum property', arg_list=['self.name', 'value'])  # IDEA use `eval` to evaluate expressions.
     def __set__(self, instance, value):
         if not isinstance(instance, CurriculumPBar):
             raise TypeError(f'You cannot set a new value to this property unless you are a `CurriculumPBar` instance.')
