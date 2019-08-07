@@ -104,12 +104,13 @@ class CurriculumPBar(Counter):
             value = state_dict['props'][prop_name]
             setattr(self, prop_name, value)
 
+    # TODO I don't like `once`.
     @property
     def once(self):
         return self._once
 
     def add_callback(self, callback, when):
-        if when == 'initial': # TODO This shouldn't be considered as a callback, right?
+        if when == 'initial':  # TODO This shouldn't be considered as a callback, right?
             callback()
             return
         callbacks = self._pre_callbacks if when == 'before' else self._post_callbacks
@@ -142,6 +143,18 @@ class CurriculumPBar(Counter):
         prop = _C_PROP_NAMES[prop_name]
         setattr(type(self), prop_name, prop)
         self._prop_names.append(prop_name)
+
+    def add_switch(self, name, before_value, after_value):
+        """Add a pbar and two callbacks (one before and one after) to simulate a switch. This esssentially wraps one `add_property` call and two `add_set_value_callback` calls.
+
+        Args:
+            name (str): the name of the `CurriculumProperty` object that controls the switch
+            before_value (any): the value to be set for callback (before)
+            after_value (any): the value to be set for callback (after)
+        """
+        self.add_property(name)
+        self.add_set_value_callback(name, before_value, 'before')
+        self.add_set_value_callback(name, after_value, 'after')
 
     def reset(self):
         self.count = 0
@@ -201,7 +214,8 @@ class CurriculumProperty:
     def __get__(self, instance, owner):
         return self._value
 
-    @log_this('IMP', msg='Setting curriculum property', arg_list=['self.name', 'value'])  # IDEA use `eval` to evaluate expressions.
+    # IDEA use `eval` to evaluate expressions.
+    @log_this('IMP', msg='Setting curriculum property', arg_list=['self.name', 'value'])
     def __set__(self, instance, value):
         if not isinstance(instance, CurriculumPBar):
             raise TypeError(f'You cannot set a new value to this property unless you are a `CurriculumPBar` instance.')

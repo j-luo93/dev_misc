@@ -64,21 +64,24 @@ class _Stage:
         for substage in self.substages:
             substage.reset_pbars()
 
-    def add_pbar(self, name, total=None, once=False, unit='samples'):
-        pbar = _manager.counter(
-            name=name,
-            once=once,
-            desc=name,
-            total=total,
-            unit=unit,
-            leave=False)
+    def add_pbar(self, name_or_pbar, total=None, once=False, unit='samples'):
+        if isinstance(name_or_pbar, CurriculumPBar):
+            pbar = name_or_pbar
+            name = pbar.desc
+        elif isinstance(name_or_pbar, str):
+            name = name_or_pbar
+            pbar = _manager.counter(
+                name=name,
+                once=once,
+                desc=name,
+                total=total,
+                unit=unit,
+                leave=False)
+        else:
+            raise TypeError(f'Unrecognized type {type(name_or_pbar)}.')
         pbar.refresh()
         self._pbars[name] = pbar
         return pbar
-
-    def share_pbar(self, pbar):
-        assert pbar.desc not in self._pbars
-        self._pbars[pbar.desc] = pbar
 
     def add_stage(self, name, num_steps=1):
         stage = _Stage(name, num_steps=num_steps, parent=self)

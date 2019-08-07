@@ -8,8 +8,10 @@ from operator import mul
 import numpy as np
 import torch
 
+
 def get_tensor(data, dtype=None, requires_grad=False, use_cuda=True):
-    use_cuda = os.environ.get('CUDA_VISIBLE_DEVICES', False) and use_cuda # NOTE only use cuda when it's not overriden and there is a device available
+    # NOTE only use cuda when it's not overriden and there is a device available
+    use_cuda = os.environ.get('CUDA_VISIBLE_DEVICES', False) and use_cuda
 
     # If data is a tensor already, move to gpu if use_cuda
     if isinstance(data, torch.Tensor):
@@ -17,7 +19,7 @@ def get_tensor(data, dtype=None, requires_grad=False, use_cuda=True):
             return data.cuda()
         return data
 
-    if dtype is None: # NOTE infer dtype
+    if dtype is None:  # NOTE infer dtype
         dtype = 'f'
         if isinstance(data, np.ndarray) and issubclass(data.dtype.type, np.integer):
             dtype = 'l'
@@ -39,13 +41,16 @@ def get_tensor(data, dtype=None, requires_grad=False, use_cuda=True):
     ret.requires_grad = requires_grad
     return ret
 
+
 def get_zeros(*shape, **kwargs):
-    if len(shape) == 1 and isinstance(shape[0], torch.Size): # NOTE deal with 1D tensor whose shape cannot be unpacked
+    if len(shape) == 1 and isinstance(shape[0], torch.Size):  # NOTE deal with 1D tensor whose shape cannot be unpacked
         shape = list(shape[0])
     return get_tensor(np.zeros(shape), **kwargs)
 
+
 def get_eye(n):
     return get_tensor(np.eye(n))
+
 
 def counter(iterable, *args, max_size=0, interval=1000, **kwargs):
     total = 0
@@ -60,15 +65,17 @@ def counter(iterable, *args, max_size=0, interval=1000, **kwargs):
             break
     logging.debug(f'Finished enumeration of size {total}')
 
+
 def freeze(mod):
     for p in mod.parameters():
         p.requires_grad = False
     for m in mod.children():
         freeze(m)
 
+
 def sort_all(anchor, *others):
     '''
-    Sort everything (``anchor`` and ``others``) in this based on the lengths of ``anchor``. 
+    Sort everything (``anchor`` and ``others``) in this based on the lengths of ``anchor``.
     '''
     # Check everything is an numpy array.
     for a in (anchor, ) + others:
@@ -83,24 +90,29 @@ def sort_all(anchor, *others):
     # Return everything after sorting.
     return [lens[inds]] + [anchor[inds]] + [o[inds] for o in others]
 
+
 def pprint_cols(data, num_cols=4):
     t = pt()
     num_rows = len(data) // num_cols + (len(data) % num_cols > 0)
     for col in range(num_cols - 1):
         t.add_column(f'Column:{col+1}', data[col * num_rows: (col + 1) * num_rows])
-    t.add_column(f'Column:{num_cols}', data[(num_cols - 1) * num_rows:] + [''] * ((num_rows - len(data) % num_rows) % num_rows))
+    t.add_column(f'Column:{num_cols}', data[(num_cols - 1) * num_rows:] +
+                 [''] * ((num_rows - len(data) % num_rows) % num_rows))
     t.align = 'l'
     print(t)
+
 
 def check(t):
     if (torch.isnan(t).any() | torch.isinf(t).any()).item():
         breakpoint()
 
+
 def canonicalize(shape, dim):
     if dim < 0:
-        return len(shape) + dim 
+        return len(shape) + dim
     else:
         return dim
+
 
 def divide(tensor, dim, div_shape):
     prev_shape = tensor.shape
@@ -111,6 +123,7 @@ def divide(tensor, dim, div_shape):
     new_shape = prev_shape[:dim] + tuple(div_shape) + prev_shape[dim + 1:]
     return tensor.view(*new_shape)
 
+
 def merge(tensor, dims):
     prev_shape = tensor.shape
     dims = [canonicalize(prev_shape, dim) for dim in dims]
@@ -119,3 +132,20 @@ def merge(tensor, dims):
     total = reduce(mul, [prev_shape[d] for d in dims], 1)
     new_shape = prev_shape[:dims[0]] + (total, ) + prev_shape[dims[-1] + 1:]
     return tensor.view(*new_shape)
+
+
+def dprint(iterable, fmt='%.3f', first_K=10):
+    """Stands for debug print."""
+    if torch.is_tensor(iterable):
+        iterable = iterable.cpu().detach().numpy()
+    elif isinstance(iterable, list):
+        iterable = np.asarray(iterable)
+    elif isinstance(iterable, np.ndarray):
+        pass
+    else:
+        raise TypeError(f'Not recognized type {type(iterable)}.')
+
+    if iterable.ndim != 1:
+        raise ValueError(f'Can only deal with vectors right now, but got dim={iterable.ndim}')
+
+    print(' '.join([fmt % x for x in iterable[:first_K]]))
