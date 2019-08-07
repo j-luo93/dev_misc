@@ -1,12 +1,14 @@
 from unittest import TestCase
 
-from .curriculum_pbar import CurriculumPBar, CurriculumProperty, clear_c_props
+from .curriculum_pbar import (CurriculumPBar, CurriculumProperty,
+                              clear_c_pbars, clear_c_props)
 
 
 class TestCurriculumProperty(TestCase):
 
     def setUp(self):
         clear_c_props()
+        clear_c_pbars()
 
         class Test:
             prop = CurriculumProperty('prop')
@@ -14,7 +16,7 @@ class TestCurriculumProperty(TestCase):
         self.obj = Test()
 
     def test_prop(self):
-        pbar = CurriculumPBar()
+        pbar = CurriculumPBar('test')
 
         with self.assertRaises(AttributeError):
             self.obj.prop
@@ -27,9 +29,8 @@ class TestCurriculumProperty(TestCase):
         self.assertEqual(self.obj.prop, 1)
 
     def test_callback(self):
-        pbar = CurriculumPBar(total=10)
-        pbar.add_property('prop')
-        pbar.add_inc_one_callback('prop', 'after')
+        pbar = CurriculumPBar('test', total=10)
+        pbar.add_inc_callback('prop', 'after')
         pbar.prop = 1
         for _ in range(10):
             pbar.update()

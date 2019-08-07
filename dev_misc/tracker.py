@@ -20,7 +20,7 @@ _STAGE_NAMES = dict()
 def clear_stages():
     global _manager
     global _STAGE_NAMES
-    _manager = enlighten.get_manager()
+    _manager = enlighten.get_manager(counter_class=CurriculumPBar)
     _STAGE_NAMES = dict()
 
 

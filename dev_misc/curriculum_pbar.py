@@ -116,11 +116,14 @@ class CurriculumPBar(Counter):
         callbacks = self._pre_callbacks if when == 'before' else self._post_callbacks
         callbacks.append(callback)
 
-    def add_inc_one_callback(self, name, when):
-        def inc_one():
+    def add_inc_callback(self, name, when, inc=1):
+        if not hasattr(self, name):
+            self.add_property(name)
+
+        def inc_func():
             value = getattr(self, name)
-            setattr(self, name, value + 1)
-        self.add_callback(inc_one, when)
+            setattr(self, name, value + inc)
+        self.add_callback(inc_func, when)
 
     def add_anneal_callback(self, name, decay, when, min_value=None):
         @log_this('IMP', msg='Annealing')
