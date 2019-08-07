@@ -11,7 +11,7 @@ class TestCurriculumProperty(TestCase):
         clear_c_pbars()
 
         class Test:
-            prop = CurriculumProperty('prop')
+            prop = CurriculumProperty()
 
         self.obj = Test()
 

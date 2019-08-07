@@ -208,18 +208,18 @@ class CurriculumProperty:
     However, only the pbar can both set and get the property whereas the original class can only get the property.
     """
 
-    def __init__(self, name):
-        if name in _C_PROP_NAMES:
-            raise NameError(f'Name "{name}" has already been used for a curriculum property.')
-        self.name = name
-        _C_PROP_NAMES[name] = self
-
     def __get__(self, instance, owner):
         return self._value
 
-    # IDEA use `eval` to evaluate expressions.
     @log_this('IMP', msg='Setting curriculum property', arg_list=['self.name', 'value'])
     def __set__(self, instance, value):
         if not isinstance(instance, CurriculumPBar):
             raise TypeError(f'You cannot set a new value to this property unless you are a `CurriculumPBar` instance.')
         self._value = value
+
+    def __set_name__(self, owner, name):
+        """Note that this method is called when the owner is created, not when self is created."""
+        self.name = name
+        if self.name in _C_PROP_NAMES:
+            raise NameError(f'Name "{self.name}" has already been used for a curriculum property.')
+        _C_PROP_NAMES[self.name] = self
