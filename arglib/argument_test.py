@@ -1,31 +1,22 @@
-from unittest import TestCase
+from .argument import DTypeNotAllowed, Argument
 
-from .argument import Argument, FormatError
+from unittest import TestCase
 
 
 class TestArgument(TestCase):
 
-    def test_str(self):
-        a = Argument('--x')
-        self.assertEqual(str(a), '--x')
-        a = Argument('--x', '-x')
-        self.assertEqual(str(a), '--x -x')
-        a = Argument('--x', '-x', default=1, dtype=int)
-        self.assertEqual(str(a), '--x -x (int) [DEFAULT = 1]')
-        a = Argument('--x', '-x', default=1, dtype=int, help='test')
-        self.assertEqual(str(a), '--x -x (int): test [DEFAULT = 1]')
+    def test_default_value(self):
+        arg = Argument('--option', dtype=int)
+        self.assertEqual(arg.value, None)
+        arg = Argument('--option', dtype=int, default=0.1)
+        self.assertEqual(arg.value, 0)
+        arg = Argument('--option', dtype=int, default=1)
+        self.assertEqual(arg.value, 1)
 
-    def test_format(self):
-        with self.assertRaises(FormatError):
-            Argument('-option1')
-        with self.assertRaises(FormatError):
-            Argument('--option1', '--o1')
-        with self.assertRaises(FormatError):
-            Argument('option1')
-        with self.assertRaises(FormatError):
-            Argument('--option1', 'o1')
-
-    def test_bool_format(self):
-        a = Argument('--use_default', default=True, dtype=bool)
-        with self.assertRaises(FormatError):
-            Argument('--no_use_default', default=True, dtype=bool)
+    def test_dtypes(self):
+        arg = Argument('--option', dtype=int, default=1)
+        arg = Argument('--option', dtype=float, default=1)
+        arg = Argument('--option', dtype=str, default=1)
+        arg = Argument('--option', dtype=bool, default=1)
+        with self.assertRaises(DTypeNotAllowed):
+            arg = Argument('--option', dtype=tuple, default=1)
