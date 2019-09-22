@@ -15,6 +15,7 @@ class Argument:
 
         self.name = name
         self.dtype = dtype
+        self.scope = scope
         if aliases:
             self.aliases = aliases
         self.value = default

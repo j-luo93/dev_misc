@@ -17,10 +17,11 @@ def add_argument(name, *aliases, dtype=str, default=None):
     frame = inspect.currentframe()
     while frame is not None and '__qualname__' not in frame.f_locals:
         frame = frame.f_back
+    # scope is basically the group that this argument belongs to.
     if frame is None:
-        scope = None
+        scope = 'default'
     else:
-        scope = frame.f_locals['__qualname__']
+        scope = frame.f_locals['__qualname__'].split('.')[-1]
     repo = _Repository()
     repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default)
 
@@ -56,14 +57,26 @@ class _RepositoryView:
     def __init__(self, attr_dict):
         self._attr_dict = attr_dict
 
-    def __getattr__(self, attr):
-        return self._attr_dict[attr].value
+    def __getattribute__(self, attr):
+        try:
+            return super().__getattribute__(attr)
+        except AttributeError:
+            return self._attr_dict[attr].value
 
     def __setattr__(self, attr, value):
         if attr == '_attr_dict':
             super().__setattr__(attr, value)
         else:
             raise FrozenViewError('You cannot set values directly from here.')
+
+    @property
+    def groups(self):
+        grouped = defaultdict(list)
+        for arg in self._attr_dict.values():
+            grouped[arg.scope].append(arg)
+        for scope in grouped:
+            grouped[scope].sort(key=lambda arg: arg.name)
+        return {k: v for k, v in grouped.items()}
 
 
 g = _Repository().get_view()
