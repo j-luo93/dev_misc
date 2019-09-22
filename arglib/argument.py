@@ -13,6 +13,7 @@ class Argument:
         if dtype not in ALLOWED_TYPES:
             raise DTypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
 
+        # FIXME reformat name
         self.name = name
         self.dtype = dtype
         self.scope = scope

@@ -1,5 +1,9 @@
 import inspect
+import re
+import sys
 from collections import defaultdict
+
+from pytrie import SortedStringTrie
 
 from .argument import Argument
 
@@ -9,6 +13,14 @@ class FrozenViewError(Exception):
 
 
 class DuplicateArgument(Exception):
+    pass
+
+
+class MultipleMatches(Exception):
+    pass
+
+
+class MatchNotFound(Exception):
     pass
 
 
@@ -30,26 +42,49 @@ def reset_repo():
     _Repository.reset()
 
 
+def parse_args():
+    repo = _Repository()
+    repo.parse_args()
+
+
 class _Repository:
     """Copied from https://stackoverflow.com/questions/6255050/python-thinking-of-a-module-and-its-variables-as-a-singleton-clean-approach."""
 
-    _shared_state = dict()
+    _shared_state = {}
+    _arg_trie = SortedStringTrie()
 
     @classmethod
     def reset(cls):
         cls._shared_state.clear()
+        cls._arg_trie = SortedStringTrie()
 
     def __init__(self):
         self.__dict__ = self._shared_state
 
     def add_argument(self, name, *aliases, scope=None, dtype=str, default=None):
         arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default)
-        if name in self.__dict__:
-            raise DuplicateArgument(f'An argument named "{name}" has been declared.')
-        self.__dict__[name] = arg
+        if arg.name in self.__dict__:
+            raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
+        self.__dict__[arg.name] = arg
+        self._arg_trie[arg.name] = arg
 
     def get_view(self):
         return _RepositoryView(self._shared_state)
+
+    def parse_args(self):
+        pattern = re.compile(r'-+[\s\w]+', re.DOTALL)
+        arg_groups = re.findall(pattern, ' '.join(sys.argv))
+        for group in arg_groups:
+            name, *values = group.strip().split()
+            name = name.strip('-')
+            args = self._arg_trie.values(prefix=name)
+            if len(args) > 1:
+                found_names = [f'"{arg.name}"' for arg in args]
+                raise MultipleMatches(f'Found more than one match for name "{name}": {", ".join(found_names)}.')
+            elif len(args) == 0:
+                raise MatchNotFound(f'Found no argument named "{name}".')
+            arg = args[0]
+            arg.value = values[0]
 
 
 class _RepositoryView:
