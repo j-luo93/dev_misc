@@ -24,8 +24,6 @@ class MatchNotFound(Exception):
     pass
 
 
-
-
 def add_argument(name, *aliases, dtype=str, default=None, nargs=1):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()

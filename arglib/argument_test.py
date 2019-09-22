@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from .argument import Argument, DTypeNotAllowed, NameFormatError, NArgsNotAllowed
+from .argument import (Argument, DTypeNotAllowed, NameFormatError,
+                       NArgsNotAllowed)
 
 
 class TestArgument(TestCase):

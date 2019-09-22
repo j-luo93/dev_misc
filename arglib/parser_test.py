@@ -1,10 +1,9 @@
 import sys
 from unittest import TestCase
 
+from .argument import MismatchedNArgs
 from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
                      add_argument, g, parse_args, reset_repo)
-
-from .argument import MismatchedNArgs
 
 
 def _parse(argv_str):
@@ -81,6 +80,11 @@ class TestParser(TestCase):
     def test_bool_negative(self):
         add_argument('use_this', default=True, dtype=bool)
         _parse('--no_use_this')
+        self.assertEqual(g.use_this, False)
+
+    def test_bool_order(self):
+        add_argument('use_this', default=True, dtype=bool)
+        _parse('--no_use_this --use_this --no_use_this')
         self.assertEqual(g.use_this, False)
 
     def test_nargs_plus(self):
