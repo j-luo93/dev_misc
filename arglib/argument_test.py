@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from .argument import Argument, DTypeNotAllowed, NameFormatError
+from .argument import Argument, DTypeNotAllowed, NameFormatError, NArgsNotAllowed
 
 
 class TestArgument(TestCase):
@@ -24,3 +24,10 @@ class TestArgument(TestCase):
     def test_name_format(self):
         with self.assertRaises(NameFormatError):
             Argument('no_option')
+
+    def test_nargs_format(self):
+        Argument('one', nargs=1)
+        Argument('second', nargs=2)
+        Argument('plus', nargs="+")
+        with self.assertRaises(NArgsNotAllowed):
+            Argument('wrong', nargs=2.3)

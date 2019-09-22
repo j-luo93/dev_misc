@@ -4,6 +4,8 @@ from unittest import TestCase
 from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
                      add_argument, g, parse_args, reset_repo)
 
+from .argument import MismatchedNArgs
+
 
 def _parse(argv_str):
     sys.argv = ('dummy.py ' + argv_str).split()
@@ -53,9 +55,8 @@ class TestParser(TestCase):
     def test_multiple_match(self):
         add_argument('use_first')
         add_argument('use_second')
-        sys.argv = 'dummy.py --use'.split()
         with self.assertRaises(MultipleMatches):
-            parse_args()
+            _parse('--use')
 
     def test_no_match(self):
         add_argument('option', default=1, dtype=int)
@@ -81,3 +82,20 @@ class TestParser(TestCase):
         add_argument('use_this', default=True, dtype=bool)
         _parse('--no_use_this')
         self.assertEqual(g.use_this, False)
+
+    def test_nargs_plus(self):
+        add_argument('option', dtype=int, nargs='+')
+        _parse('--option 1 2 3 4 5')
+        self.assertTupleEqual(g.option, (1, 2, 3, 4, 5))
+
+    def test_nargs(self):
+        add_argument('one', dtype=int, nargs=1)
+        add_argument('two', dtype=int, nargs=2)
+        _parse('--one 5 --two 4 8')
+        self.assertEqual(g.one, 5)
+        self.assertTupleEqual(g.two, (4, 8))
+
+    def test_nargs_raise(self):
+        add_argument('two', dtype=int, nargs=2)
+        with self.assertRaises(MismatchedNArgs):
+            _parse('--two 1')

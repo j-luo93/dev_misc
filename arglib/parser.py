@@ -24,7 +24,9 @@ class MatchNotFound(Exception):
     pass
 
 
-def add_argument(name, *aliases, dtype=str, default=None):
+
+
+def add_argument(name, *aliases, dtype=str, default=None, nargs=1):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
     while frame is not None and '__qualname__' not in frame.f_locals:
@@ -35,7 +37,7 @@ def add_argument(name, *aliases, dtype=str, default=None):
     else:
         scope = frame.f_locals['__qualname__'].split('.')[-1]
     repo = _Repository()
-    repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default)
+    repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs)
 
 
 def reset_repo():
@@ -61,8 +63,8 @@ class _Repository:
     def __init__(self):
         self.__dict__ = self._shared_state
 
-    def add_argument(self, name, *aliases, scope=None, dtype=str, default=None):
-        arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default)
+    def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1):
+        arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
         self.__dict__[arg.name] = arg
@@ -88,9 +90,9 @@ class _Repository:
 
             arg = args[0]
             if arg.dtype == bool:
-                new_value = not name.startswith('no_')
+                new_value = [not name.startswith('no_')] + values
             else:
-                new_value = values[0]
+                new_value = values
             arg.value = new_value
 
 
