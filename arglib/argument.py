@@ -1,3 +1,5 @@
+import inspect
+
 ALLOWED_TYPES = [str, float, int, bool]
 
 
@@ -7,7 +9,7 @@ class DTypeNotAllowed(Exception):
 
 class Argument:
 
-    def __init__(self, name, *aliases, dtype=str, default=None):
+    def __init__(self, name, *aliases, scope=None, dtype=str, default=None):
         if dtype not in ALLOWED_TYPES:
             raise DTypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
 
@@ -16,6 +18,12 @@ class Argument:
         if aliases:
             self.aliases = aliases
         self.value = default
+
+    def __repr__(self):
+        return f'Argument({self.name})'
+
+    def __str__(self):
+        return f'{self.name}: {self.value}'
 
     @property
     def value(self):
