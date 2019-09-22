@@ -7,13 +7,21 @@ class DTypeNotAllowed(Exception):
     pass
 
 
+class NameFormatError(Exception):
+    pass
+
+
 class Argument:
 
     def __init__(self, name, *aliases, scope=None, dtype=str, default=None):
         if dtype not in ALLOWED_TYPES:
             raise DTypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
 
-        # FIXME reformat name
+        # Clean up name.
+        name = name.strip('-').strip('_')
+        if name.startswith('no_'):
+            raise NameFormatError(f'Cannot have names starting with "no_", but got "f{name}".')
+
         self.name = name
         self.dtype = dtype
         self.scope = scope

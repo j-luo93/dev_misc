@@ -5,6 +5,11 @@ from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
                      add_argument, g, parse_args, reset_repo)
 
 
+def _parse(argv_str):
+    sys.argv = ('dummy.py ' + argv_str).split()
+    parse_args()
+
+
 class TestParser(TestCase):
 
     def setUp(self):
@@ -54,18 +59,25 @@ class TestParser(TestCase):
 
     def test_no_match(self):
         add_argument('option', default=1, dtype=int)
-        sys.argv = 'dummy.py --option 2'.split()
-        parse_args()
+        _parse('--option 2')
         self.assertEqual(g.option, 2)
 
     def test_match_order(self):
         add_argument('option', default=1, dtype=int)
-        sys.argv = 'dummy.py --option 2 --option 3'.split()
-        parse_args()
+        _parse('--option 2 --option 3')
         self.assertEqual(g.option, 3)
 
     def test_fuzzy_match(self):
         add_argument('option', default=1, dtype=int)
-        sys.argv = 'dummy.py --o 2'.split()
-        parse_args()
+        _parse('--o 2')
         self.assertEqual(g.option, 2)
+
+    def test_bool_positive(self):
+        add_argument('use_this', default=False, dtype=bool)
+        _parse('--use_this')
+        self.assertEqual(g.use_this, True)
+
+    def test_bool_negative(self):
+        add_argument('use_this', default=True, dtype=bool)
+        _parse('--no_use_this')
+        self.assertEqual(g.use_this, False)

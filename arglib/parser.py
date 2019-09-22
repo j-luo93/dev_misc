@@ -66,7 +66,9 @@ class _Repository:
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
         self.__dict__[arg.name] = arg
-        self._arg_trie[arg.name] = arg
+        self._arg_trie[arg.name] = arg  # NOTE This is class attribute, therefore not part of __dict__.
+        if dtype == bool:
+            self._arg_trie[f'no_{arg.name}'] = arg
 
     def get_view(self):
         return _RepositoryView(self._shared_state)
@@ -83,8 +85,13 @@ class _Repository:
                 raise MultipleMatches(f'Found more than one match for name "{name}": {", ".join(found_names)}.')
             elif len(args) == 0:
                 raise MatchNotFound(f'Found no argument named "{name}".')
+
             arg = args[0]
-            arg.value = values[0]
+            if arg.dtype == bool:
+                new_value = not name.startswith('no_')
+            else:
+                new_value = values[0]
+            arg.value = new_value
 
 
 class _RepositoryView:
