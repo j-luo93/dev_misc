@@ -3,7 +3,8 @@ from unittest import TestCase
 
 from .argument import MismatchedNArgs
 from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
-                     add_argument, g, parse_args, reset_repo)
+                     ReservedNameError, add_argument, g, init_g_attr,
+                     parse_args, reset_repo)
 
 
 def _parse(argv_str):
@@ -57,10 +58,15 @@ class TestParser(TestCase):
         with self.assertRaises(MultipleMatches):
             _parse('--use')
 
-    def test_no_match(self):
+    def test_match(self):
         add_argument('option', default=1, dtype=int)
         _parse('--option 2')
         self.assertEqual(g.option, 2)
+
+    def test_no_match(self):
+        add_argument('option', default=1, dtype=int)
+        with self.assertRaises(MatchNotFound):
+            _parse('--opion 2')
 
     def test_match_order(self):
         add_argument('option', default=1, dtype=int)
@@ -103,3 +109,24 @@ class TestParser(TestCase):
         add_argument('two', dtype=int, nargs=2)
         with self.assertRaises(MismatchedNArgs):
             _parse('--two 1')
+
+    def test_reserved_names(self):
+        with self.assertRaises(ReservedNameError):
+            add_argument('keys')
+
+    def test_init_g_attr(self):
+
+        @init_g_attr
+        class Test:
+
+            add_argument('option', default=1, dtype=int)
+
+            def __init__(self, arg, option=2, another_option=3):
+                self.arg = arg
+                self.another_option = another_option
+
+        _parse('--option 4')
+        x = Test(1)
+        self.assertEqual(x.arg, 1)
+        self.assertEqual(x.another_option, 3)
+        self.assertEqual(x.option, 4)

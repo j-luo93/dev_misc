@@ -2,10 +2,15 @@ import inspect
 import re
 import sys
 from collections import defaultdict
+from functools import wraps
 
 from pytrie import SortedStringTrie
 
 from .argument import Argument
+
+
+class ReservedNameError(Exception):
+    pass
 
 
 class FrozenViewError(Exception):
@@ -65,6 +70,8 @@ class _Repository:
         arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
+        if arg.name in SUPPORTED_VIEW_ATTRS:
+            raise ReservedNameError(f'Name "{arg.name}" is reserved for something else.')
         self.__dict__[arg.name] = arg
         self._arg_trie[arg.name] = arg  # NOTE This is class attribute, therefore not part of __dict__.
         if dtype == bool:
@@ -94,6 +101,9 @@ class _Repository:
             arg.value = new_value
 
 
+SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items']
+
+
 class _RepositoryView:
 
     def __init__(self, attr_dict):
@@ -103,7 +113,10 @@ class _RepositoryView:
         try:
             return super().__getattribute__(attr)
         except AttributeError:
-            return self._attr_dict[attr].value
+            proxy = self._attr_dict
+            if attr in SUPPORTED_VIEW_ATTRS:
+                return getattr(proxy, attr)
+            return proxy[attr].value
 
     def __setattr__(self, attr, value):
         if attr == '_attr_dict':
@@ -122,3 +135,34 @@ class _RepositoryView:
 
 
 g = _Repository().get_view()
+
+
+def init_g_attr(cls):
+
+    old_init = cls.__init__
+
+    # NOTE Properties are accessed through the class, not through the instance.
+    for attr in g.keys():
+        prop = property(lambda self, name=f'_{attr}': getattr(self, name).value)
+        setattr(cls, attr, prop)
+
+    @wraps(old_init)
+    def new_init(self, *args, **kwargs):
+        func_sig = inspect.signature(old_init)
+        # First, partially bind the args and kwargs.
+        bound = func_sig.bind_partial(self, *args, **kwargs)
+        # Second, if possi ble, supply the missing arguments through g.
+        bound_args = bound.arguments
+        for k, v in g.items():
+            if k not in bound_args:
+                bound_args[k] = v
+        # Third, apply the defaults.
+        bound.apply_defaults()
+        # Fourth, update the values for the private attributes (used for properties).
+        for attr in g.keys():
+            setattr(self, f'_{attr}', bound_args[attr])
+        # Last, call the old init.
+        old_init(**bound_args)
+
+    cls.__init__ = new_init
+    return cls
