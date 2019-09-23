@@ -3,8 +3,9 @@ from unittest import TestCase
 
 from .argument import MismatchedNArgs
 from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
-                     ReservedNameError, add_argument, g, init_g_attr,
-                     parse_args, reset_repo)
+                     OverlappingRegistries, ReservedNameError, add_argument,
+                     add_registry, g, init_g_attr, parse_args, reset_repo)
+from .registry import Registry
 
 
 def _parse(argv_str):
@@ -179,5 +180,64 @@ class TestParser(TestCase):
         with self.assertRaises(AttributeError):
             x._arg
 
+    def test_add_registry(self):
+        reg = Registry('test')
+        add_registry('config', reg)
+        add_argument('x', default=0, dtype=int)
 
+        @reg
+        class Test:
+            x: int = 1
 
+        _parse('--config Test')
+        self.assertEqual(g.x, 1)
+
+    def _set_up_multiple_registires(self):
+        reg1 = Registry('first')
+        reg2 = Registry('second')
+        add_registry('first_config', reg1)
+        add_registry('second_config', reg2)
+        add_argument('x', dtype=int, default=0)
+        add_argument('y', dtype=int, default=0)
+        return reg1, reg2
+
+    def test_add_multiple_registries(self):
+        reg1, reg2 = self._set_up_multiple_registires()
+
+        @reg1
+        class Test1:
+            x: int = 2
+
+        @reg2
+        class Test2:
+            y: int = 3
+
+        _parse('--first_config Test1 --second_config Test2')
+        self.assertEqual(g.x, 2)
+        self.assertEqual(g.y, 3)
+
+    def test_overlapping_registries(self):
+        reg1, reg2 = self._set_up_multiple_registires()
+
+        @reg1
+        class Test1:
+            x: int = 2
+
+        @reg2
+        class Test2:
+            x: int = 3
+
+        with self.assertRaises(OverlappingRegistries):
+            _parse('--first_config Test1 --second_config Test2')
+
+    def test_cli_overriding_registry(self):
+        reg = Registry('Test')
+        add_registry('config', reg)
+        add_argument('x', default=0, dtype=int)
+
+        @reg
+        class Test:
+            x: int = 2
+
+        _parse('--x 5 --config Test ')
+        self.assertEqual(g.x, 5)

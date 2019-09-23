@@ -1,5 +1,6 @@
 from unittest import TestCase
-from .registry import Registry, DuplicateInRegistry, NotRegistered
+
+from .registry import DuplicateInRegistry, NotRegistered, Registry
 
 
 class TestRegistry(TestCase):

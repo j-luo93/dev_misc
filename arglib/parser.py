@@ -29,6 +29,10 @@ class MatchNotFound(Exception):
     pass
 
 
+class OverlappingRegistries(Exception):
+    pass
+
+
 def add_argument(name, *aliases, dtype=str, default=None, nargs=1):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
@@ -52,11 +56,17 @@ def parse_args():
     repo.parse_args()
 
 
+def add_registry(argument_name, registry):
+    repo = _Repository()
+    repo.add_registry(argument_name, registry)
+
+
 class _Repository:
     """Copied from https://stackoverflow.com/questions/6255050/python-thinking-of-a-module-and-its-variables-as-a-singleton-clean-approach."""
 
-    _shared_state = {}
+    _shared_state = dict()
     _arg_trie = SortedStringTrie()
+    _registries = dict()
 
     @classmethod
     def reset(cls):
@@ -76,29 +86,58 @@ class _Repository:
         self._arg_trie[arg.name] = arg  # NOTE This is class attribute, therefore not part of __dict__.
         if dtype == bool:
             self._arg_trie[f'no_{arg.name}'] = arg
+        return arg
+
+    def add_registry(self, argument_name, registry):
+        arg = self.add_argument(argument_name, dtype=str)
+        self._registries[arg.name] = registry
 
     def get_view(self):
         return _RepositoryView(self._shared_state)
 
+    def _get_argument_by_string(self, name, source='CLI'):
+        args = self._arg_trie.values(prefix=name)
+        if len(args) > 1:
+            found_names = [f'"{arg.name}"' for arg in args]
+            raise MultipleMatches(f'Found more than one match for name "{name}": {", ".join(found_names)}.')
+        elif len(args) == 0:
+            raise MatchNotFound(f'Found no argument named "{name}" from "{source}".')
+        arg = args[0]
+        return arg
+
     def parse_args(self):
         pattern = re.compile(r'-+[\s\w]+', re.DOTALL)
         arg_groups = re.findall(pattern, ' '.join(sys.argv))
+        # Parse the CLI string first.
+        parsed = list()
         for group in arg_groups:
             name, *values = group.strip().split()
             name = name.strip('-')
-            args = self._arg_trie.values(prefix=name)
-            if len(args) > 1:
-                found_names = [f'"{arg.name}"' for arg in args]
-                raise MultipleMatches(f'Found more than one match for name "{name}": {", ".join(found_names)}.')
-            elif len(args) == 0:
-                raise MatchNotFound(f'Found no argument named "{name}".')
-
-            arg = args[0]
+            arg = self._get_argument_by_string(name, source='CLI')
             if arg.dtype == bool:
                 new_value = [not name.startswith('no_')] + values
             else:
                 new_value = values
-            arg.value = new_value
+            parsed.append((arg, new_value))
+        # Deal with config files and use their values to set the new default values.
+        cfg_names = set()
+        for arg, new_value in parsed:
+            if arg.name in self._registries:
+                arg.value = new_value
+                reg = self._registries[arg.name]
+                cfg_cls = reg[arg.value]
+                cfg = vars(cfg_cls())
+                for cfg_name, cfg_value in cfg.items():
+                    cfg_arg = self._get_argument_by_string(cfg_name, source=cfg_cls.__name__)
+                    cfg_arg.value = cfg_value
+                    if cfg_name in cfg_names:
+                        raise OverlappingRegistries(
+                            f'Argument named "{cfg_name}" has been found in multiple registries.')
+                    cfg_names.add(cfg_name)
+        # Set the remaning CLI arguments.
+        for arg, new_value in parsed:
+            if arg.name not in self._registries:
+                arg.value = new_value
 
 
 SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items']
