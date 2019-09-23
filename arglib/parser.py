@@ -102,8 +102,16 @@ class _Repository:
 
 
 SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items']
+SUPPORTED_VIEW_MAGIC = ['__contains__']
 
 
+def add_magic(cls):
+    for mm in SUPPORTED_VIEW_MAGIC:
+        setattr(cls, mm, lambda self, *args, mm=mm, **kwargs: getattr(self._attr_dict, mm)(*args, **kwargs))
+    return cls
+
+
+@add_magic
 class _RepositoryView:
 
     def __init__(self, attr_dict):
@@ -137,32 +145,77 @@ class _RepositoryView:
 g = _Repository().get_view()
 
 
-def init_g_attr(cls):
+ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
-    old_init = cls.__init__
 
-    # NOTE Properties are accessed through the class, not through the instance.
-    for attr in g.keys():
-        prop = property(lambda self, name=f'_{attr}': getattr(self, name).value)
-        setattr(cls, attr, prop)
+def init_g_attr(cls=None, *, default='property'):
+    """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
+    But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
 
-    @wraps(old_init)
-    def new_init(self, *args, **kwargs):
-        func_sig = inspect.signature(old_init)
-        # First, partially bind the args and kwargs.
-        bound = func_sig.bind_partial(self, *args, **kwargs)
-        # Second, if possi ble, supply the missing arguments through g.
-        bound_args = bound.arguments
-        for k, v in g.items():
-            if k not in bound_args:
-                bound_args[k] = v
-        # Third, apply the defaults.
-        bound.apply_defaults()
-        # Fourth, update the values for the private attributes (used for properties).
-        for attr in g.keys():
-            setattr(self, f'_{attr}', bound_args[attr])
-        # Last, call the old init.
-        old_init(**bound_args)
+    Use @init_g_attr to @init_g_attr(default='property') to set everything (apart from self) as properties.
+    There are other possible values for "default":
+    1. "none": This will return to the original default of not doing anything.
+    2. "attr": This will add the argument as a normal attribute.
+    All non-default actions for the arguments should be annotated.
+    """
+    if default not in ALLOWED_INIT_G_ATTR_DEFAULT:
+        raise ValueError(
+            f'The value for "default" must be from {ALLOWED_INIT_G_ATTR_DEFAULT}, but is actually {default}.')
 
-    cls.__init__ = new_init
-    return cls
+    def wrap(cls):
+        old_init = cls.__init__
+
+        # Analyze every argument in the signature to figure out what to do with each of them.
+        sig = inspect.signature(old_init)
+        params = sig.parameters
+        actions = dict()
+        type2action = {
+            'p': 'property',
+            'n': 'none',
+            'a': 'attribute'
+        }
+        for name, param in params.items():
+            if name == 'self':
+                actions[name] = 'none'
+            elif param.annotation == inspect.Signature.empty:
+                actions[name] = default
+            else:
+                try:
+                    actions[name] = type2action[param.annotation]
+                except KeyError:
+                    raise KeyError(f'Annotation type "{param.annotation}" not supported.')
+
+        # NOTE Properties are accessed through the class, not through the instance. Hence they should be set up
+        # prior to __init__ calls.
+        for name, action in actions.items():
+            if action == 'property':
+                prop = property(lambda self, name=f'_{name}': getattr(self, name))
+                setattr(cls, name, prop)
+
+        @wraps(old_init)
+        def new_init(self, *args, **kwargs):
+            # First, partially bind the args and kwargs.
+            bound = sig.bind_partial(self, *args, **kwargs)
+            # Second, if possible, supply the missing arguments through g. Note that this is in-place.
+            already_bound = bound.arguments
+            for attr in params:
+                if attr not in already_bound and attr in g:
+                    bound.arguments[attr] = getattr(g, attr)
+            # Third, apply the defaults.
+            bound.apply_defaults()
+            # Fourth, add attributes and finish setting up properties.
+            for name, action in actions.items():
+                if action == 'property':
+                    setattr(self, f'_{name}', bound.arguments[name])
+                elif action == 'attribute':
+                    setattr(self, name, bound.arguments[name])
+            # Last, call the old init.
+            old_init(**bound.arguments)
+
+        cls.__init__ = new_init
+        return cls
+
+    if cls is None:
+        return wrap
+
+    return wrap(cls)
