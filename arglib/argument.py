@@ -21,7 +21,7 @@ class NArgsNotAllowed(Exception):
 
 class Argument:
 
-    def __init__(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1):
+    def __init__(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
         if dtype not in ALLOWED_TYPES:
             raise DTypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
         if not isinstance(nargs, int) and nargs != '+':
@@ -38,6 +38,7 @@ class Argument:
         self.dtype = dtype
         self.scope = scope
         self.nargs = nargs
+        self.msg = msg
         if aliases:
             self.aliases = aliases
         self.value = default

@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import inspect
 import re
 import sys
@@ -33,7 +34,7 @@ class OverlappingRegistries(Exception):
     pass
 
 
-def add_argument(name, *aliases, dtype=str, default=None, nargs=1):
+def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
     while frame is not None and '__qualname__' not in frame.f_locals:
@@ -44,7 +45,7 @@ def add_argument(name, *aliases, dtype=str, default=None, nargs=1):
     else:
         scope = frame.f_locals['__qualname__'].split('.')[-1]
     repo = _Repository()
-    repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs)
+    repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
 
 
 def reset_repo():
@@ -53,7 +54,7 @@ def reset_repo():
 
 def parse_args():
     repo = _Repository()
-    repo.parse_args()
+    return repo.parse_args()
 
 
 def add_registry(argument_name, registry):
@@ -76,8 +77,8 @@ class _Repository:
     def __init__(self):
         self.__dict__ = self._shared_state
 
-    def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1):
-        arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs)
+    def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
+        arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
         if arg.name in SUPPORTED_VIEW_ATTRS:
@@ -138,10 +139,11 @@ class _Repository:
         for arg, new_value in parsed:
             if arg.name not in self._registries:
                 arg.value = new_value
+        return g
 
 
 SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items']
-SUPPORTED_VIEW_MAGIC = ['__contains__']
+SUPPORTED_VIEW_MAGIC = ['__contains__', '__iter__']
 
 
 def add_magic(cls):
@@ -174,11 +176,17 @@ class _RepositoryView:
     @property
     def groups(self):
         grouped = defaultdict(list)
-        for arg in self._attr_dict.values():
+        for arg in self.values():
             grouped[arg.scope].append(arg)
         for scope in grouped:
             grouped[scope].sort(key=lambda arg: arg.name)
         return {k: v for k, v in grouped.items()}
+
+    def as_dict(self):
+        return {k: arg.value for k, arg in self.items()}
+
+    def as_namespace(self):
+        return SimpleNamespace(**self.as_dict())
 
 
 g = _Repository().get_view()
