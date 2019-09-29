@@ -248,3 +248,10 @@ class TestParser(TestCase):
 
         _parse('--first 1 --second sth-with-hyphen/another-with-hyphen')
         self.assertEqual(g.second, 'sth-with-hyphen/another-with-hyphen')
+
+    def test_equal_sign(self):
+        add_argument('first', dtype=int)
+        add_argument('second', dtype=int)
+        _parse('--first=1 --second 2')
+        self.assertEqual(g.first, 1)
+        self.assertEqual(g.second, 2)

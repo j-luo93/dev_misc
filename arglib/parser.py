@@ -113,7 +113,7 @@ class _Repository:
             if seg.startswith('-'):
                 if group:
                     arg_groups.append(group)
-                group = [seg]
+                group = seg.split('=')
             else:
                 group.append(seg)
         if group:
