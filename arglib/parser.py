@@ -107,12 +107,21 @@ class _Repository:
         return arg
 
     def parse_args(self):
-        pattern = re.compile(r'-+[\s\w]+', re.DOTALL)
-        arg_groups = re.findall(pattern, ' '.join(sys.argv))
+        arg_groups = list()
+        group = list()
+        for seg in sys.argv[1:]:
+            if seg.startswith('-'):
+                if group:
+                    arg_groups.append(group)
+                group = [seg]
+            else:
+                group.append(seg)
+        if group:
+            arg_groups.append(group)
         # Parse the CLI string first.
         parsed = list()
         for group in arg_groups:
-            name, *values = group.strip().split()
+            name, *values = group
             name = name.strip('-')
             arg = self._get_argument_by_string(name, source='CLI')
             if arg.dtype == bool:

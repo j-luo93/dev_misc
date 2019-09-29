@@ -241,3 +241,10 @@ class TestParser(TestCase):
 
         _parse('--x 5 --config Test ')
         self.assertEqual(g.x, 5)
+
+    def test_hyphen_in_path(self):
+        add_argument('first')
+        add_argument('second')
+
+        _parse('--first 1 --second sth-with-hyphen/another-with-hyphen')
+        self.assertEqual(g.second, 'sth-with-hyphen/another-with-hyphen')
