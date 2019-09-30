@@ -15,6 +15,10 @@ class Registry:
         self._name = name
         self._instances = dict()
 
+    @property
+    def name(self):
+        return self._name
+
     def __getitem__(self, name):
         if name not in self._instances:
             raise NotRegistered(f'Class named "{name}" not registered.')

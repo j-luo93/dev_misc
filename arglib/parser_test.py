@@ -2,11 +2,11 @@ import sys
 from unittest import TestCase
 
 from .argument import MismatchedNArgs
-from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
-                     MustForceSetArgument, OverlappingRegistries,
-                     ReservedNameError, add_argument, add_registry, g,
-                     get_configs, init_g_attr, parse_args, reset_repo,
-                     set_argument)
+from .parser import (DuplicateArgument, DuplicateRegistry, MatchNotFound,
+                     MultipleMatches, MustForceSetArgument,
+                     OverlappingRegistries, ReservedNameError, add_argument,
+                     add_registry, g, get_configs, init_g_attr, parse_args,
+                     reset_repo, set_argument)
 from .registry import Registry
 
 
@@ -183,8 +183,8 @@ class TestParser(TestCase):
             x._arg
 
     def test_add_registry(self):
-        reg = Registry('test')
-        add_registry('config', reg)
+        reg = Registry('config')
+        add_registry(reg)
         add_argument('x', default=0, dtype=int)
 
         @reg
@@ -194,11 +194,18 @@ class TestParser(TestCase):
         _parse('--config Test')
         self.assertEqual(g.x, 1)
 
+    def test_duplicate_registry(self):
+        reg1 = Registry('config')
+        reg2 = Registry('config')
+        add_registry(reg1)
+        with self.assertRaises(DuplicateRegistry):
+            add_registry(reg2)
+
     def _set_up_multiple_registires(self):
-        reg1 = Registry('first')
-        reg2 = Registry('second')
-        add_registry('first_config', reg1)
-        add_registry('second_config', reg2)
+        reg1 = Registry('first_config')
+        reg2 = Registry('second_config')
+        add_registry(reg1)
+        add_registry(reg2)
         add_argument('x', dtype=int, default=0)
         add_argument('y', dtype=int, default=0)
         return reg1, reg2
@@ -255,8 +262,8 @@ class TestParser(TestCase):
             _parse('--first_config Test1 --second_config Test2')
 
     def test_cli_overriding_registry(self):
-        reg = Registry('Test')
-        add_registry('config', reg)
+        reg = Registry('config')
+        add_registry(reg)
         add_argument('x', default=0, dtype=int)
 
         @reg

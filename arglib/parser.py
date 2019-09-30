@@ -31,6 +31,10 @@ class MatchNotFound(Exception):
     pass
 
 
+class DuplicateRegistry(Exception):
+    pass
+
+
 class OverlappingRegistries(Exception):
     pass
 
@@ -67,9 +71,9 @@ def parse_args(known_only=False):
     return repo.parse_args(known_only=known_only)
 
 
-def add_registry(argument_name, registry):
+def add_registry(registry):
     repo = _Repository()
-    repo.add_registry(argument_name, registry)
+    repo.add_registry(registry)
 
 
 def get_configs():
@@ -111,8 +115,11 @@ class _Repository:
         arg = self._get_argument_by_string(name)
         arg.value = value
 
-    def add_registry(self, argument_name, registry):
-        arg = self.add_argument(argument_name, dtype=str)
+    def add_registry(self, registry):
+        try:
+            arg = self.add_argument(registry.name, dtype=str)
+        except DuplicateArgument:
+            raise DuplicateRegistry(f'A registry named "{registry.name}" already exists.')
         self._registries[arg.name] = registry
 
     @property
