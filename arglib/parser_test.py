@@ -182,7 +182,7 @@ class TestParser(TestCase):
         with self.assertRaises(AttributeError):
             x._arg
 
-    def test_add_registry(self):
+    def _set_up_one_registry(self):
         reg = Registry('config')
         add_registry(reg)
         add_argument('x', default=0, dtype=int)
@@ -191,8 +191,17 @@ class TestParser(TestCase):
         class Test:
             x: int = 1
 
+    def test_add_registry(self):
+        self._set_up_one_registry()
+
         _parse('--config Test')
         self.assertEqual(g.x, 1)
+
+    def test_add_registry_but_unspecified(self):
+        self._set_up_one_registry()
+
+        _parse('')
+        self.assertEqual(g.x, 0)
 
     def test_duplicate_registry(self):
         reg1 = Registry('config')
