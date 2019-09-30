@@ -3,14 +3,16 @@ from unittest import TestCase
 
 from .argument import MismatchedNArgs
 from .parser import (DuplicateArgument, MatchNotFound, MultipleMatches,
-                     OverlappingRegistries, ReservedNameError, add_argument,
-                     add_registry, g, init_g_attr, parse_args, reset_repo)
+                     MustForceSetArgument, OverlappingRegistries,
+                     ReservedNameError, add_argument, add_registry, g,
+                     get_configs, init_g_attr, parse_args, reset_repo,
+                     set_argument)
 from .registry import Registry
 
 
-def _parse(argv_str):
+def _parse(argv_str, known_only=False):
     sys.argv = ('dummy.py ' + argv_str).split()
-    parse_args()
+    parse_args(known_only=known_only)
 
 
 class TestParser(TestCase):
@@ -216,6 +218,28 @@ class TestParser(TestCase):
         self.assertEqual(g.x, 2)
         self.assertEqual(g.y, 3)
 
+    def test_get_configs(self):
+        reg1, reg2 = self._set_up_multiple_registires()
+
+        @reg1
+        class Test1:
+            pass
+
+        @reg1
+        class Test2:
+            pass
+
+        @reg2
+        class Test3:
+            pass
+
+        @reg2
+        class Test4:
+            pass
+
+        _parse('--second_config Test4 --first_config Test2')
+        self.assertDictEqual(get_configs(), {'first_config': 'Test2', 'second_config': 'Test4'})
+
     def test_overlapping_registries(self):
         reg1, reg2 = self._set_up_multiple_registires()
 
@@ -255,3 +279,22 @@ class TestParser(TestCase):
         _parse('--first=1 --second 2')
         self.assertEqual(g.first, 1)
         self.assertEqual(g.second, 2)
+
+    def test_set_argument(self):
+        add_argument('first', dtype=int, default=1)
+        with self.assertRaises(MustForceSetArgument):
+            set_argument('first', 2)
+        set_argument('first', 2, force=True)
+        self.assertEqual(g.first, 2)
+
+    def test_parse_args_known_only(self):
+        add_argument('first', dtype=int, default=2)
+        with self.assertRaises(MatchNotFound):
+            _parse('--second 3 --first 5')
+        _parse('--second 3 --first 5', known_only=True)
+        self.assertEqual(g.first, 5)
+
+        add_argument('second', dtype=int, default=1)
+        _parse('--second 3 --first 5')
+        self.assertEqual(g.first, 5)
+        self.assertEqual(g.second, 3)

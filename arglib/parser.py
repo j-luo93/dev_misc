@@ -1,9 +1,10 @@
-from types import SimpleNamespace
 import inspect
 import re
 import sys
 from collections import defaultdict
 from functools import wraps
+from types import SimpleNamespace
+from typing import Dict
 
 from pytrie import SortedStringTrie
 
@@ -34,6 +35,10 @@ class OverlappingRegistries(Exception):
     pass
 
 
+class MustForceSetArgument(Exception):
+    pass
+
+
 def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
@@ -48,18 +53,28 @@ def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
     repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
 
 
+def set_argument(name, value, *, force=False):
+    repo = _Repository()
+    repo.set_argument(name, value, force=force)
+
+
 def reset_repo():
     _Repository.reset()
 
 
-def parse_args():
+def parse_args(known_only=False):
     repo = _Repository()
-    return repo.parse_args()
+    return repo.parse_args(known_only=known_only)
 
 
 def add_registry(argument_name, registry):
     repo = _Repository()
     repo.add_registry(argument_name, registry)
+
+
+def get_configs():
+    repo = _Repository()
+    return repo.configs
 
 
 class _Repository:
@@ -73,6 +88,7 @@ class _Repository:
     def reset(cls):
         cls._shared_state.clear()
         cls._arg_trie = SortedStringTrie()
+        cls._registries.clear()
 
     def __init__(self):
         self.__dict__ = self._shared_state
@@ -89,9 +105,23 @@ class _Repository:
             self._arg_trie[f'no_{arg.name}'] = arg
         return arg
 
+    def set_argument(self, name, value, *, force=False):
+        if not force:
+            raise MustForceSetArgument(f'You must explicitliy set force = True in order to set an argument.')
+        arg = self._get_argument_by_string(name)
+        arg.value = value
+
     def add_registry(self, argument_name, registry):
         arg = self.add_argument(argument_name, dtype=str)
         self._registries[arg.name] = registry
+
+    @property
+    def configs(self) -> Dict[str, str]:
+        ret = dict()
+        for name, registry in self._registries.items():
+            arg = self._get_argument_by_string(name)
+            ret[name] = arg.value
+        return ret
 
     def get_view(self):
         return _RepositoryView(self._shared_state)
@@ -106,7 +136,7 @@ class _Repository:
         arg = args[0]
         return arg
 
-    def parse_args(self):
+    def parse_args(self, known_only=False):
         arg_groups = list()
         group = list()
         for seg in sys.argv[1:]:
@@ -123,12 +153,16 @@ class _Repository:
         for group in arg_groups:
             name, *values = group
             name = name.strip('-')
-            arg = self._get_argument_by_string(name, source='CLI')
-            if arg.dtype == bool:
-                new_value = [not name.startswith('no_')] + values
-            else:
-                new_value = values
-            parsed.append((arg, new_value))
+            try:
+                arg = self._get_argument_by_string(name, source='CLI')
+                if arg.dtype == bool:
+                    new_value = [not name.startswith('no_')] + values
+                else:
+                    new_value = values
+                parsed.append((arg, new_value))
+            except MatchNotFound as e:
+                if not known_only:
+                    raise e
         # Deal with config files and use their values to set the new default values.
         cfg_names = set()
         for arg, new_value in parsed:
@@ -204,6 +238,7 @@ g = _Repository().get_view()
 ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
+# TODO(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
 def init_g_attr(cls=None, *, default='property'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
     But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
