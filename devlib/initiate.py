@@ -1,3 +1,4 @@
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +23,13 @@ def initiate(registries: Iterable[Registry] = None):
     add_argument('log_dir', dtype=str, msg='log directory')
     add_argument('log_level', default='INFO', msg='log level')
     add_argument('message', default='', msg='message to append to the config class name')
+    add_argument('gpus', dtype=int, nargs='+', msg='GPUs to use')
     parse_args(known_only=True)
+
+    # Set an environment variable.
+    if g.gpus:
+        # NOTE(j_luo) This environment variable is a string.
+        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, g.gpus))
 
     # log_dir would be automatically set as follows if it is not specified manually:
     # ./log/<date>/<config_class_name>[-<message>]/<timestamp>
