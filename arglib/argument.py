@@ -67,5 +67,7 @@ class Argument:
 
             if new_value_nargs == 1:
                 self._value = self.dtype(new_value)
+                if self.nargs == '+':
+                    self._value = (self._value, )
             else:
                 self._value = tuple((self.dtype(v) for v in new_value))

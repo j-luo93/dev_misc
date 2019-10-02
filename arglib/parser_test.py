@@ -101,6 +101,11 @@ class TestParser(TestCase):
         _parse('--option 1 2 3 4 5')
         self.assertTupleEqual(g.option, (1, 2, 3, 4, 5))
 
+    def test_nargs_plus_with_only_value(self):
+        add_argument('option', dtype=int, nargs='+')
+        _parse('--option 1')
+        self.assertTupleEqual(g.option, (1, ))
+
     def test_nargs(self):
         add_argument('one', dtype=int, nargs=1)
         add_argument('two', dtype=int, nargs=2)
