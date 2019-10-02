@@ -9,7 +9,7 @@ from arglib import (Registry, add_argument, add_registry, g, get_configs,
 from trainlib import create_logger
 
 
-def initiate(registries: Iterable[Registry] = None):
+def initiate(registries: Iterable[Registry] = None, logger=False, log_dir=False, log_level=False, gpus=False):
     """
     This function does a few things.
     1. Hook registries to arglib.
@@ -20,20 +20,24 @@ def initiate(registries: Iterable[Registry] = None):
     if registries:
         for reg in registries:
             add_registry(reg)
-    add_argument('log_dir', dtype=str, msg='log directory')
-    add_argument('log_level', default='INFO', msg='log level')
-    add_argument('message', default='', msg='message to append to the config class name')
-    add_argument('gpus', dtype=int, nargs='+', msg='GPUs to use')
+
+    if log_dir:
+        add_argument('log_dir', dtype=str, msg='log directory')
+        add_argument('message', default='', msg='message to append to the config class name')
+    if log_level:
+        add_argument('log_level', default='INFO', msg='log level')
+    if gpus:
+        add_argument('gpus', dtype=int, nargs='+', msg='GPUs to use')
     parse_args(known_only=True)
 
     # Set an environment variable.
-    if g.gpus:
+    if gpus and g.gpus:
         # NOTE(j_luo) This environment variable is a string.
         os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, g.gpus))
 
     # log_dir would be automatically set as follows if it is not specified manually:
     # ./log/<date>/<config_class_name>[-<message>]/<timestamp>
-    if not g.log_dir:
+    if log_dir and not g.log_dir:
         folder = Path('./log')
         configs = get_configs()
         identifier = '-'.join(filter(lambda x: x is not None, configs.values()))
@@ -54,4 +58,7 @@ def initiate(registries: Iterable[Registry] = None):
                 break
 
     # Create a logger.
-    create_logger(file_path=Path(g.log_dir) / 'log', log_level=g.log_level)
+    if logger:
+        file_path = Path(g.log_dir) / 'log' if log_dir else None
+        log_level = g.log_level if log_level else 'INFO'
+        create_logger(file_path=file_path, log_level=log_level)
