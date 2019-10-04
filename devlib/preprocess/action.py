@@ -206,7 +206,7 @@ class ApplyBpe(Action):
         check_constant('FASTBPE')
 
         # For EAT, first figure out how to deal with '<EMPTY>'.
-        is_eat = src.fmt.ext == 'eat'
+        is_eat = 'eat' in src.fmt.ops
         if is_eat:
             empty_out = subprocess.check_output(
                 f'{CONSTANTS.FASTBPE} applybpe_stream {codes} < <(echo "<EMPTY>")', shell=True, executable='/bin/bash')  # NOTE Have to use bash for this since process substitution is a bash-only feature.
@@ -279,6 +279,7 @@ class Binarize(Action):
 
 class Link(Action):
 
+    # TODO(j_luo) Shouldn't be called `link_to` -- it is the link.
     def change_fmt(self, src: FormatFile, *, link_to: FormatFile = None, **kwargs):
         check_explicit_param('link_to', link_to)
         return link_to
