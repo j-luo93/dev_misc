@@ -1,12 +1,15 @@
 """An Action class that takes care of the file and its transformation."""
 
-from functools import wraps
 import logging
+import os
 import subprocess
 from abc import ABC, abstractmethod
+from functools import wraps
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Set, Union
+from typing import List, Tuple, Union
+
+import stanfordnlp
 
 from .format_file import FormatFile
 
@@ -18,7 +21,8 @@ CONSTANTS = SimpleNamespace(
     REM_NON_PRINT_CHAR='',
     TOKENIZER='',
     FASTBPE='',
-    NUM_THREADS=8
+    NUM_THREADS=8,
+    EAT_DIR='',
 )
 
 
@@ -53,17 +57,6 @@ def check_explicit_param(name, value):
         raise RuntimeError(f'Must pass this {name} explicitly.')
 
 
-def check_exists(tgt: Union[FormatFile, List[FormatFile]]) -> bool:
-    if not isinstance(tgt, list):
-        tgt = [tgt]
-    for t in tgt:
-        if not t.exists():
-            return False
-        else:
-            logging.info(f'{t} already exists.')
-    return True
-
-
 def deal_with_iterable(func):
 
     @wraps(func)
@@ -79,6 +72,18 @@ def deal_with_iterable(func):
     return wrapper
 
 
+@deal_with_iterable
+def check_exists(tgt: Union[List[FormatFile], FormatFile]) -> bool:
+    if not isinstance(tgt, list):
+        tgt = [tgt]
+    for t in tgt:
+        if not t.exists():
+            return False
+        else:
+            logging.info(f'{t} already exists.')
+    return True
+
+
 Src = Union[FormatFile, str]
 
 
@@ -88,12 +93,17 @@ def get_fmt_attr(src: Src, attr: str):
         return None
     else:
         return getattr(src.fmt, attr)
-    return ret
 
 
 @deal_with_iterable
 def try_mkdir(tgt: FormatFile):
     tgt.path.parent.mkdir(parents=True, exist_ok=True)
+
+
+@deal_with_iterable
+def clean_up(tgt: FormatFile):
+    if tgt.exists():
+        os.remove(tgt.path)
 
 
 class Action(ABC):
@@ -120,14 +130,18 @@ class Action(ABC):
         cls = type(self)
         all_fmt_exts = set(get_fmt_attr(src, 'ext'))
         if cls.REQUIRED_EXT and len(all_fmt_exts - cls.REQUIRED_EXT) > 0:
-            raise RequirementError(f'Not meeting ext requirement. {src.fmt.ext} is not in {cls.REQUIRED_EXT}.')
+            raise RequirementError(f'Not meeting ext requirement. {all_fmt_exts} is not in {cls.REQUIRED_EXT}.')
         all_fmt_ops = set(get_fmt_attr(src, 'ops'))
         if cls.REQUIRED_OPS and not cls.REQUIRED_OPS <= all_fmt_ops:
             raise RequirementError(
                 f'Not meeting ops requirement. {all_fmt_ops} missed something in {cls.REQUIRED_OPS}.')
         if not check_exists(tgt):
             try_mkdir(tgt)
-            self.act(src, tgt, **kwargs)
+            try:
+                self.act(src, tgt, **kwargs)
+            except subprocess.CalledProcessError as e:
+                clean_up(tgt)
+                raise e
             logging.imp(f'Data saved in {tgt}.')
         return tgt
 
@@ -139,7 +153,7 @@ class Download(Action):
         return download_to
 
     def act(self, src: str, tgt: FormatFile, **kwargs):
-        subprocess.call(f'wget {src} -O {tgt}', shell=True)
+        subprocess.check_call(f'wget {src} -O {tgt}', shell=True)
 
 
 class Merge(Action):
@@ -150,7 +164,7 @@ class Merge(Action):
 
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
         all_paths = ' '.join([str(fmt_f.path) for fmt_f in src])
-        subprocess.call(f'cat {all_paths} > {tgt}', shell=True)
+        subprocess.check_call(f'cat {all_paths} > {tgt}', shell=True)
 
 
 class Decompress(Action):
@@ -161,7 +175,7 @@ class Decompress(Action):
         return src.change_ext('txt')
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
-        subprocess.call(f'gunzip -c {src} > {tgt}', shell=True)
+        subprocess.check_call(f'gunzip -c {src} > {tgt}', shell=True)
 
 
 class Preprocess(Action):
@@ -173,7 +187,7 @@ class Preprocess(Action):
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
         check_constant('MOSES_DIR')
-        subprocess.call(
+        subprocess.check_call(
             f"cat {src} | {CONSTANTS.REPLACE_UNICODE_PUNCT} | {CONSTANTS.NORM_PUNC} -l {src.fmt.lang} | {CONSTANTS.REM_NON_PRINT_CHAR} | {CONSTANTS.TOKENIZER} -l {src.fmt.lang} -no-escape -threads {CONSTANTS.NUM_THREADS} > {tgt}", shell=True)
 
 
@@ -191,14 +205,17 @@ class ApplyBpe(Action):
 
         check_constant('FASTBPE')
 
-        # First figure out how to deal with '<EMPTY>'.
-        empty_out = subprocess.check_output(
-            f'{CONSTANTS.FASTBPE} applybpe_stream {codes} < <(echo "<EMPTY>")', shell=True, executable='/bin/bash')  # NOTE Have to use bash for this since process substitution is a bash-only feature.
-        empty_out = empty_out.decode('utf8').strip()
+        # For EAT, first figure out how to deal with '<EMPTY>'.
+        is_eat = src.fmt.ext == 'eat'
+        if is_eat:
+            empty_out = subprocess.check_output(
+                f'{CONSTANTS.FASTBPE} applybpe_stream {codes} < <(echo "<EMPTY>")', shell=True, executable='/bin/bash')  # NOTE Have to use bash for this since process substitution is a bash-only feature.
+            empty_out = empty_out.decode('utf8').strip()
 
         # Now apply BPE to everything.
-        subprocess.call(f'{CONSTANTS.FASTBPE} applybpe {tgt} {src} {codes}', shell=True)
-        subprocess.call(f"sed -i 's/{empty_out}/<EMPTY>/g' {tgt}", shell=True)
+        subprocess.check_call(f'{CONSTANTS.FASTBPE} applybpe {tgt} {src} {codes}', shell=True)
+        if is_eat:
+            subprocess.check_call(f"sed -i 's/{empty_out}/<EMPTY>/g' {tgt}", shell=True)
 
 
 class Split(Action):
@@ -240,7 +257,7 @@ class ExtractJointVocab(Action):
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
         check_constant('FASTBPE')
         src_paths = ' '.join([str(s.path) for s in src])
-        subprocess.call(f'{CONSTANTS.FASTBPE} getvocab {src_paths} > {tgt}', shell=True)
+        subprocess.check_call(f'{CONSTANTS.FASTBPE} getvocab {src_paths} > {tgt}', shell=True)
 
 
 class Binarize(Action):
@@ -257,7 +274,7 @@ class Binarize(Action):
 
         check_constant('MAIN_DIR')
 
-        subprocess.call(f'{CONSTANTS.MAIN_DIR}/preprocess.py {vocab} {src} {tgt}', shell=True)
+        subprocess.check_call(f'{CONSTANTS.MAIN_DIR}/preprocess.py {vocab} {src} {tgt}', shell=True)
 
 
 class Link(Action):
@@ -268,3 +285,87 @@ class Link(Action):
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
         tgt.path.symlink_to(src.path)
+
+
+class Parse(Action):
+
+    REQUIRED_EXT = {'txt'}
+    REQUIRED_OPS = {'tok'}
+
+    _cached_parsers = dict()
+
+    def __init__(self, lang: str):
+        self.lang = lang
+
+    def change_fmt(self, src: FormatFile, **kwargs):
+        return src.change_ext('conll')
+
+    def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
+        logging.info(f'Parsing {src}...')
+        if self.lang not in self._cached_parsers:
+            parser = stanfordnlp.Pipeline(verbose=True, lang=self.lang, tokenize_pretokenized=True,
+                                          use_gpu=True)  # This sets up a default neural pipeline.
+            self._cached_parsers[self.lang] = parser
+        inputs = list()
+        with src.open('r', encoding='utf8') as fin:
+            for line in fin:
+                inputs.append(line.strip().split())
+        parser = self._cached_parsers[self.lang]
+        doc = parser(inputs)
+        doc.write_conll_to_file(tgt.path)
+
+
+class Collapse(Action):
+
+    REQUIRED_EXT = {'conll'}
+    REQUIRED_OPS = {'tok'}
+
+    def change_fmt(self, src: FormatFile, **kwargs):
+        return src.change_ext('records')
+
+    def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
+        subprocess.check_call(
+            f"sed ':a;N;$!ba;s/\\n\\n/@@@/g' {src} | sed ':a;N;$!ba;s/\\n/\t/g' | sed 's/@@@/\\n/g' > {tgt}", shell=True)
+
+
+class ConvertEat(Action):
+
+    REQUIRED_EXT = {'records'}
+    REQUIRED_OPS = {'tok'}
+
+    def change_fmt(self, src: FormatFile, **kwargs):
+        plain_tgt = src.remove_pair().add_op('cvt').change_ext('txt')
+        eat_tgt = plain_tgt.add_op('eat')
+        line_no_tgt = plain_tgt.change_ext('line_no')
+        return eat_tgt, plain_tgt, line_no_tgt
+        # return EatFiles(tgt, EatAuxFiles(plain_tgt, line_no_tgt))
+
+    def act(self, src: FormatFile, tgt: Tuple[FormatFile], **kwargs):
+        eat, plain, line_no = tgt
+        logging.info(f'Converting {src} to EAT format.')
+        subprocess.check_call(f'python {CONSTANTS.EAT_DIR / "to_eat.py"} {src} {eat} {plain} {line_no}', shell=True)
+
+
+class Align(Action):
+
+    def change_fmt(self, src: List[FormatFile], **kwargs):
+        return FormatFile.align(src)
+
+    def act(self, src: List[FormatFile], tgt: List[FormatFile], *, line_nos: List[FormatFile] = None, **kwargs):
+        check_explicit_param('line_nos', line_nos)
+        if not (len(line_nos) == len(src) == len(tgt) == 2):
+            raise RuntimeError('Expecting to have 2 files')
+
+        # Get parallel ids.
+        ids = None
+        for l in line_nos:
+            with l.open('r', encoding='utf8') as fl:
+                l_ids = set(map(int, fl.read().split()))
+            ids = l_ids if ids is None else ids & l_ids
+
+        # Write to tgt.
+        for s, t in zip(src, tgt):
+            with s.open('r', encoding='utf8') as fs, t.open('w', encoding='utf8') as ft:
+                for i, line in enumerate(fs):
+                    if i in ids:
+                        ft.write(line)

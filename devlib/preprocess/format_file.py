@@ -1,5 +1,6 @@
 """A FormatFile instance follows a strict convention of naming files."""
 
+import os
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import wraps
@@ -7,8 +8,8 @@ from pathlib import Path
 from types import MethodType
 from typing import List, Tuple
 
-SUPPORTED_FILE_EXTS = {'txt', 'gz', 'pth'}
-SUPPORTED_ACTIONS = {'bpe', 'tok'}
+SUPPORTED_FILE_EXTS = {'txt', 'gz', 'pth', 'conll', 'records', 'line_no'}
+SUPPORTED_ACTIONS = {'bpe', 'tok', 'cvt', 'eat'}
 
 
 @dataclass
@@ -55,6 +56,15 @@ def propagate(func=None, *, is_iterable=False):
     return wrapper(func)
 
 
+def get_two_languages(src: List['Format']):
+    if len(src) != 2:
+        raise RuntimeError(f'Expecting two source files but got {len(src)}.')
+    f1, f2 = src
+    if f1.lang == f2.lang:
+        raise RuntimeError(f'Expecting two different languages, but got {f1.lang} and {f2.lang}.')
+    return f1, f2
+
+
 @dataclass
 class Format:
     folder: Path
@@ -63,6 +73,9 @@ class Format:
     ext: str
     ops: Tuple[str] = None
     part: int = None
+
+    def clone(self):
+        return deepcopy(self)
 
     @property
     def lang(self):
@@ -91,13 +104,13 @@ class Format:
 
     @propagate
     def change_ext(self, new_ext: str):
-        new_fmt = deepcopy(self)
+        new_fmt = self.clone()
         new_fmt.ext = new_ext
         return new_fmt
 
     @propagate
     def add_op(self, op: str):
-        new_fmt = deepcopy(self)
+        new_fmt = self.clone()
         if self.ops:
             new_fmt.ops = self.ops + (op, )
         else:
@@ -106,13 +119,13 @@ class Format:
 
     @propagate
     def get_vocab(self):
-        new_fmt = deepcopy(self)
+        new_fmt = self.clone()
         new_fmt.main = 'vocab'
         return new_fmt
 
     @propagate
     def change_folder(self, new_folder: str):
-        new_fmt = deepcopy(self)
+        new_fmt = self.clone()
         new_fmt.folder = new_folder
         return new_fmt
 
@@ -126,30 +139,38 @@ class Format:
 
     @propagate
     def remove_pair(self):
-        new_fmt = deepcopy(self)
+        new_fmt = self.clone()
         new_fmt.lang_info.pair = None
         return new_fmt
 
     @propagate
     def remove_part(self):
-        new_fmt = deepcopy(self)
+        new_fmt = self.clone()
         new_fmt.part = None
         return new_fmt
 
     @classmethod
     def extract_joint_vocab(cls, src: List['Format']):
-        if len(src) != 2:
-            raise RuntimeError(f'Expecting two source files but got {len(src)}.')
-        f1, f2 = src
-        if f1.lang == f2.lang:
-            raise RuntimeError(f'Expecting two different languages, but got {f1.lang} and {f2.lang}.')
-        new_fmt = deepcopy(f1)
+        f1, f2 = get_two_languages(src)
+        new_fmt = f1.clone()
         new_fmt.main = 'vocab'
         new_fmt.lang_info.lang = None
         if not f1.pair or not f2.pair or f1.pair != f2.pair:
             # This is for non-parallel vocab.
             new_fmt.lang_info.pair = '+'.join(sorted([f1.lang, f2.lang]))
         return new_fmt
+
+    @classmethod
+    def align(cls, src: List['Format']):
+        f1, f2 = get_two_languages(src)
+        if f1.pair or f2.pair:
+            raise RuntimeError(f'Expecting both sources to be non-parallel, but got {f1.pair} and {f2.pair}.')
+        new_pair = '-'.join(sorted([f1.lang, f2.lang]))
+        new_fmt1 = f1.clone()
+        new_fmt1.lang_info.pair = new_pair
+        new_fmt2 = f2.clone()
+        new_fmt2.lang_info.pair = new_pair
+        return new_fmt1, new_fmt2
 
 
 class FormatFile:
@@ -172,11 +193,23 @@ class FormatFile:
         fmt = Format.extract_joint_vocab(fmts)
         return FormatFile.from_fmt(fmt)
 
+    @classmethod
+    def align(cls, src: List['FormatFile']):
+        fmts = [s.fmt for s in src]
+        fmts = Format.align(fmts)
+        return [FormatFile.from_fmt(fmt) for fmt in fmts]
+
     def __repr__(self):
         return str(self.fmt)
 
     def exists(self):
         return self.path.exists()
+
+    def remove(self):
+        try:
+            os.remove(self.path)
+        except FileNotFoundError:
+            pass
 
     def __getattribute__(self, attr):
         try:
