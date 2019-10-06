@@ -279,10 +279,9 @@ class Binarize(Action):
 
 class Link(Action):
 
-    # TODO(j_luo) Shouldn't be called `link_to` -- it is the link.
-    def change_fmt(self, src: FormatFile, *, link_to: FormatFile = None, **kwargs):
-        check_explicit_param('link_to', link_to)
-        return link_to
+    def change_fmt(self, src: FormatFile, *, link: FormatFile = None, **kwargs):
+        check_explicit_param('link', link)
+        return link
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
         tgt.path.symlink_to(src.path)

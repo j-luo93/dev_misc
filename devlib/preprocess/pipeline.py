@@ -94,7 +94,7 @@ class Pipeline:
     def link(self, src_key: NamedTuple, tgt: FormatFile):
         action = Link()
         src = self.sources[src_key]
-        action(src, link_to=tgt)
+        action(src, link=tgt)
         self.sources[src_key] = tgt
 
     def align(self, src_key1: NamedTuple, src_key2: NamedTuple):
