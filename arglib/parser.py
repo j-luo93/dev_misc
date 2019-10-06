@@ -245,7 +245,7 @@ g = _Repository().get_view()
 ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
-# TODO(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
+# IDEA(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
 def init_g_attr(cls=None, *, default='property'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
     But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
