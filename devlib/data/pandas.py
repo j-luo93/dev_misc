@@ -1,11 +1,11 @@
 from types import SimpleNamespace
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List
 
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from devlib.helper import get_tensor
+from devlib.helper import get_tensor, pad_to_dense
 
 
 class PandasDataset(Dataset):
@@ -44,13 +44,4 @@ class PandasDataLoader(DataLoader):
         dataset = PandasDataset(data, columns=columns)
         if collate_fn is None:
             collate_fn = pandas_collate_fn
-        return super().__init__(dataset, *args, collate_fn=collate_fn, **kwargs)
-
-    def __iter__(self):
-        for batch_df in super().__iter__():
-            # NOTE(j_luo) Convert the data to proper dtypes.
-            batch = SimpleNamespace(**{
-                col: get_tensor(batch_df[col].astype(dtype).values)
-                for col, dtype in zip(self.dataset.columns, self.dataset.dtypes)
-            })
-            yield batch
+        super().__init__(dataset, *args, collate_fn=collate_fn, **kwargs)
