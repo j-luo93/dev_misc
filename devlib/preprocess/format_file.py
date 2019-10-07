@@ -41,7 +41,7 @@ def propagate(func=None, *, is_iterable=False):
 
         @wraps(func)
         def wrapped_func(self, *args, **kwargs):
-            fmts = func(self, *args, **kwargs)
+            fmts = func(self.fmt, *args, **kwargs)
             if is_iterable:
                 return [FormatFile.from_fmt(fmt) for fmt in fmts]
             else:
@@ -54,6 +54,14 @@ def propagate(func=None, *, is_iterable=False):
         return wrapper
 
     return wrapper(func)
+
+
+def propagate_to(cls):
+    for name, func in PROPAGATED.items():
+        if hasattr(cls, name):
+            raise NameError(f'Class {cls.__name__} already has an attribute named {name}.')
+        setattr(cls, name, func)
+    return cls
 
 
 def get_two_languages(src: List['Format']):
@@ -173,6 +181,7 @@ class Format:
         return new_fmt1, new_fmt2
 
 
+@propagate_to
 class FormatFile:
 
     def __init__(self, folder: Path, main: str, lang: str, ext: str, pair: str = None, ops: Tuple[str] = None, part: int = None):
@@ -210,16 +219,6 @@ class FormatFile:
             os.remove(self.path)
         except FileNotFoundError:
             pass
-
-    def __getattribute__(self, attr):
-        try:
-            return super().__getattribute__(attr)
-        except AttributeError as e:
-            if attr in PROPAGATED:
-                method = PROPAGATED[attr]
-                method = MethodType(method, self.fmt)
-                return method
-            raise e
 
     def open(self, *args, **kwargs):
         return self.path.open(*args, **kwargs)

@@ -23,3 +23,8 @@ class TestFormatFile(TestCase):
             FormatFile(path, 'train', 'en', 'txtblah')
         with self.assertRaises(UnsupportedError):
             FormatFile(path, 'train', 'en', 'txt', ops=['tokblah'])
+
+    def test_propagated_methods(self):
+        f = FormatFile(path, 'train', 'en', 'txt', pair='de-en')
+        f = f.remove_pair()
+        self.assertEqual(str(f), 'train.en.txt')
