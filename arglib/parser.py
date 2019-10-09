@@ -246,7 +246,7 @@ ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
 # TODO(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
-def init_g_attr(cls=None, *, default='property'):
+def init_g_attr(cls=None, *, default='none'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
     But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
 
@@ -255,6 +255,8 @@ def init_g_attr(cls=None, *, default='property'):
     1. "none": This will return to the original default of not doing anything.
     2. "attr": This will add the argument as a normal attribute.
     All non-default actions for the arguments should be annotated.
+
+    Default is set to "none" to avoid confusion regarding attributes and properties.
     """
     if default not in ALLOWED_INIT_G_ATTR_DEFAULT:
         raise ValueError(

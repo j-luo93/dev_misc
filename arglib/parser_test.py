@@ -165,7 +165,7 @@ class TestParser(TestCase):
 
     def test_init_g_attr_annotations(self):
 
-        @init_g_attr
+        @init_g_attr(default='property')
         class Test:
 
             add_argument('option', default=1, dtype=int)
