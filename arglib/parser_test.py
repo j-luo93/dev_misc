@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy
 from unittest import TestCase
 
 from .argument import MismatchedNArgs
@@ -319,3 +320,16 @@ class TestParser(TestCase):
         _parse('--second 3 --first 5')
         self.assertEqual(g.first, 5)
         self.assertEqual(g.second, 3)
+
+    def test_save_and_load(self):
+        add_argument('first', dtype=int, default=2)
+        _parse('--first 3')
+        self.assertEqual(g.first, 3)
+
+        state_dict = deepcopy(g.state_dict())
+        reset_repo()
+
+        g.load_state_dict(state_dict)
+        self.assertEqual(g.first, 3)
+        set_argument('first', 4, force=True)
+        self.assertEqual(g.first, 4)

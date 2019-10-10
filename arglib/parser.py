@@ -238,6 +238,17 @@ class _RepositoryView:
     def __init__(self, attr_dict):
         self._attr_dict = attr_dict
 
+    def state_dict(self):
+        return self._attr_dict
+
+    def load_state_dict(self, state_dict):
+        # Load _shared_state.
+        self._attr_dict.clear()
+        self._attr_dict.update(**state_dict)
+        # Load _arg_trie. Remember this is a class variable.
+        for arg in self._attr_dict.values():
+            _Repository._arg_trie[arg.name] = arg
+
     def __getattribute__(self, attr):
         try:
             return super().__getattribute__(attr)

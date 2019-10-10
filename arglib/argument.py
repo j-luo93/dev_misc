@@ -1,6 +1,7 @@
 import inspect
+from pathlib import Path
 
-ALLOWED_TYPES = [str, float, int, bool]
+ALLOWED_TYPES = [str, float, int, bool, 'path']
 
 
 class DTypeNotAllowed(Exception):
@@ -33,6 +34,9 @@ class Argument:
         name = name.strip('-').strip('_')
         if name.startswith('no_'):
             raise NameFormatError(f'Cannot have names starting with "no_", but got "f{name}".')
+
+        # Change 'path' to Path.
+        dtype = Path if dtype == 'path' else dtype
 
         self.name = name
         self.dtype = dtype
