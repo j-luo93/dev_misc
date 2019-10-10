@@ -1,3 +1,4 @@
+import logging
 import inspect
 import re
 import sys
@@ -43,6 +44,10 @@ class MustForceSetArgument(Exception):
     pass
 
 
+class ArgumentScopeNotSupplied(Exception):
+    pass
+
+
 def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
@@ -81,6 +86,26 @@ def get_configs():
     return repo.configs
 
 
+def show_args():
+    _print_all_args()
+
+
+def _print_all_args(log_also=True, and_exit=False):
+    output = ''
+    for group, args in g.groups.items():
+        if log_also:
+            output += f'{group}:\n'
+        for arg in args:
+            output += f'\t{arg}\n'
+    output = output.strip()
+    if log_also:
+        logging.info(output)
+    else:
+        print(output)
+    if and_exit:
+        exit()
+
+
 class _Repository:
     """Copied from https://stackoverflow.com/questions/6255050/python-thinking-of-a-module-and-its-variables-as-a-singleton-clean-approach."""
 
@@ -98,6 +123,9 @@ class _Repository:
         self.__dict__ = self._shared_state
 
     def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
+        if scope is None:
+            raise ArgumentScopeNotSupplied('You have to explicitly set scope to a value.')
+
         arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
@@ -117,7 +145,7 @@ class _Repository:
 
     def add_registry(self, registry):
         try:
-            arg = self.add_argument(registry.name, dtype=str)
+            arg = self.add_argument(registry.name, scope='default', dtype=str)
         except DuplicateArgument:
             raise DuplicateRegistry(f'A registry named "{registry.name}" already exists.')
         self._registries[arg.name] = registry
@@ -143,13 +171,6 @@ class _Repository:
         arg = args[0]
         return arg
 
-    def print_help(self):
-        for group, args in g.groups.items():
-            print(f'{group}:')
-            for arg in args:
-                print(f'\t{arg}')
-        exit()
-
     def parse_args(self, known_only=False):
         arg_groups = list()
         group = list()
@@ -168,7 +189,7 @@ class _Repository:
             name, *values = group
             name = name.strip('-')
             if name == 'h' or name == 'help':  # NOTE(j_luo) Help mode.
-                self.print_help()
+                _print_all_args(log_also=False, and_exit=True)
             try:
                 arg = self._get_argument_by_string(name, source='CLI')
                 if arg.dtype == bool:
