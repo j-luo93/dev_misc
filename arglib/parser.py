@@ -1,3 +1,4 @@
+import logging
 import inspect
 import re
 import sys
@@ -43,6 +44,10 @@ class MustForceSetArgument(Exception):
     pass
 
 
+class ArgumentScopeNotSupplied(Exception):
+    pass
+
+
 def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
@@ -81,6 +86,26 @@ def get_configs():
     return repo.configs
 
 
+def show_args():
+    _print_all_args()
+
+
+def _print_all_args(log_also=True, and_exit=False):
+    output = ''
+    for group, args in g.groups.items():
+        if log_also:
+            output += f'{group}:\n'
+        for arg in args:
+            output += f'\t{arg}\n'
+    output = output.strip()
+    if log_also:
+        logging.info(output)
+    else:
+        print(output)
+    if and_exit:
+        exit()
+
+
 class _Repository:
     """Copied from https://stackoverflow.com/questions/6255050/python-thinking-of-a-module-and-its-variables-as-a-singleton-clean-approach."""
 
@@ -98,13 +123,16 @@ class _Repository:
         self.__dict__ = self._shared_state
 
     def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
+        if scope is None:
+            raise ArgumentScopeNotSupplied('You have to explicitly set scope to a value.')
+
         arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
         if arg.name in SUPPORTED_VIEW_ATTRS:
             raise ReservedNameError(f'Name "{arg.name}" is reserved for something else.')
         self.__dict__[arg.name] = arg
-        self._arg_trie[arg.name] = arg  # NOTE This is class attribute, therefore not part of __dict__.
+        self._arg_trie[arg.name] = arg  # NOTE(j_luo) This is class attribute, therefore not part of __dict__.
         if dtype == bool:
             self._arg_trie[f'no_{arg.name}'] = arg
         return arg
@@ -117,7 +145,7 @@ class _Repository:
 
     def add_registry(self, registry):
         try:
-            arg = self.add_argument(registry.name, dtype=str)
+            arg = self.add_argument(registry.name, scope='default', dtype=str)
         except DuplicateArgument:
             raise DuplicateRegistry(f'A registry named "{registry.name}" already exists.')
         self._registries[arg.name] = registry
@@ -160,6 +188,8 @@ class _Repository:
         for group in arg_groups:
             name, *values = group
             name = name.strip('-')
+            if name == 'h' or name == 'help':  # NOTE(j_luo) Help mode.
+                _print_all_args(log_also=False, and_exit=True)
             try:
                 arg = self._get_argument_by_string(name, source='CLI')
                 if arg.dtype == bool:
@@ -208,6 +238,17 @@ class _RepositoryView:
     def __init__(self, attr_dict):
         self._attr_dict = attr_dict
 
+    def state_dict(self):
+        return self._attr_dict
+
+    def load_state_dict(self, state_dict):
+        # Load _shared_state.
+        self._attr_dict.clear()
+        self._attr_dict.update(**state_dict)
+        # Load _arg_trie. Remember this is a class variable.
+        for arg in self._attr_dict.values():
+            _Repository._arg_trie[arg.name] = arg
+
     def __getattribute__(self, attr):
         try:
             return super().__getattribute__(attr)
@@ -245,7 +286,7 @@ g = _Repository().get_view()
 ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
-# TODO(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
+# IDEA(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
 def init_g_attr(cls=None, *, default='none'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
     But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
@@ -285,7 +326,7 @@ def init_g_attr(cls=None, *, default='none'):
                 except KeyError:
                     raise KeyError(f'Annotation type "{param.annotation}" not supported.')
 
-        # NOTE Properties are accessed through the class, not through the instance. Hence they should be set up
+        # NOTE(j_luo) Properties are accessed through the class, not through the instance. Hence they should be set up
         # prior to __init__ calls.
         for name, action in actions.items():
             if action == 'property':
