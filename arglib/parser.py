@@ -104,7 +104,7 @@ class _Repository:
         if arg.name in SUPPORTED_VIEW_ATTRS:
             raise ReservedNameError(f'Name "{arg.name}" is reserved for something else.')
         self.__dict__[arg.name] = arg
-        self._arg_trie[arg.name] = arg  # NOTE This is class attribute, therefore not part of __dict__.
+        self._arg_trie[arg.name] = arg  # NOTE(j_luo) This is class attribute, therefore not part of __dict__.
         if dtype == bool:
             self._arg_trie[f'no_{arg.name}'] = arg
         return arg
@@ -143,6 +143,13 @@ class _Repository:
         arg = args[0]
         return arg
 
+    def print_help(self):
+        for group, args in g.groups.items():
+            print(f'{group}:')
+            for arg in args:
+                print(f'\t{arg}')
+        exit()
+
     def parse_args(self, known_only=False):
         arg_groups = list()
         group = list()
@@ -160,6 +167,8 @@ class _Repository:
         for group in arg_groups:
             name, *values = group
             name = name.strip('-')
+            if name == 'h' or name == 'help':  # NOTE(j_luo) Help mode.
+                self.print_help()
             try:
                 arg = self._get_argument_by_string(name, source='CLI')
                 if arg.dtype == bool:
@@ -283,7 +292,7 @@ def init_g_attr(cls=None, *, default='property'):
                 except KeyError:
                     raise KeyError(f'Annotation type "{param.annotation}" not supported.')
 
-        # NOTE Properties are accessed through the class, not through the instance. Hence they should be set up
+        # NOTE(j_luo) Properties are accessed through the class, not through the instance. Hence they should be set up
         # prior to __init__ calls.
         for name, action in actions.items():
             if action == 'property':
