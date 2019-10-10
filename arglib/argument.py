@@ -4,7 +4,7 @@ from pathlib import Path
 ALLOWED_TYPES = [str, float, int, bool, 'path']
 
 
-class DTypeNotAllowed(Exception):
+class DtypeNotAllowed(Exception):
     pass
 
 
@@ -24,7 +24,7 @@ class Argument:
 
     def __init__(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
         if dtype not in ALLOWED_TYPES:
-            raise DTypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
+            raise DtypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
         if not isinstance(nargs, int) and nargs != '+':
             raise NArgsNotAllowed(f'nargs can only be an int or "+", but got {nargs}.')
         if dtype == bool and nargs != 1:
