@@ -22,7 +22,7 @@ def initiate(*registries: Iterable[Registry], logger=False, log_dir=False, log_l
             add_registry(reg)
 
     if log_dir:
-        add_argument('log_dir', dtype=str, msg='log directory')
+        add_argument('log_dir', dtype='path', msg='log directory')
         add_argument('message', default='', msg='message to append to the config class name')
     if log_level:
         add_argument('log_level', default='INFO', msg='log level')
