@@ -31,11 +31,8 @@ class TestPandasDataLoader(TestCase):
 
     def test_iter(self):
         df = _set_up_basic_df()
-        df['y'] = df['y'].astype('float32')
         dataloader = PandasDataLoader(df, batch_size=2)
         cnt = 0
         for batch in dataloader:
             cnt += 1
-            self.assertEqual(batch.x.dtype, torch.int64)
-            self.assertEqual(batch.y.dtype, torch.float32)
         self.assertEqual(cnt, 5)
