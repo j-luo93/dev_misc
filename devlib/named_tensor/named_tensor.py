@@ -1,3 +1,4 @@
+import logging
 from functools import wraps
 from typing import List
 
@@ -5,7 +6,9 @@ import torch
 
 # NOTE(j_luo) Magic methods cannot be detected through __getattr__, so they have to be provided here.
 _action2attrs = {
-    'inherit': {'log_softmax', 'softmax', '__add__', '__radd__', '__sub__', '__rsub__', '__mul__', '__rmul__', '__truediv__', '__rtruediv__', '__floordiv__', '__rfloordiv__'}
+    'inherit': {'log_softmax', 'softmax', '__add__', '__radd__', '__sub__', '__rsub__', '__mul__', '__rmul__', '__truediv__', '__rtruediv__', '__floordiv__', '__rfloordiv__'},
+    'inherit_2': {'topk'},  # 2-ary output.
+    'break': {'view'}  # Break the named chain.
 }
 _attr2action = dict()
 for action, attrs in _action2attrs.items():
@@ -35,6 +38,10 @@ class NamedTensor:
             logging.warning(f'{attr} is a callable, but not taken care of.')
         return ret
 
+    def size(self, name: str) -> int:
+        idx = self.names.index(name)
+        return self._tensor.size(idx)
+
     def __repr__(self):
         names = ', '.join([f'"{name}"' for name in self.names])
         out = f'NamedTensor({names}):\n'
@@ -44,7 +51,7 @@ class NamedTensor:
 
 def get_wrapper(attr, *, action=None):
     assert action is not None
-    assert action in ['inherit']
+    assert action in ['inherit', 'inherit_2', 'break']
     func = getattr(torch.Tensor, attr)
 
     @wraps(func)
@@ -54,6 +61,15 @@ def get_wrapper(attr, *, action=None):
             if not torch.is_tensor(ret):
                 raise TypeError(f'Expecting a tensor instance, but got {type(ret)}.')
             ret = NamedTensor(ret, names=self.names)
+        elif action == 'inherit_2':
+            if len(ret) != 2:
+                raise TypeError(f'Expecting the return to contain two outputs, but got {len(ret)}.')
+            ret1, ret2 = ret
+            ret1 = NamedTensor(ret1, names=self.names)
+            ret2 = NamedTensor(ret2, names=self.names)
+            ret = (ret1, ret2)
+        elif action == 'break':
+            pass
         return ret
 
     return wrapper
