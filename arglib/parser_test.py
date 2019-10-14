@@ -2,7 +2,7 @@ import sys
 from copy import deepcopy
 from unittest import TestCase
 
-from .argument import MismatchedNArgs
+from .argument import ChoiceNotAllowed, MismatchedNArgs
 from .parser import (DuplicateArgument, DuplicateRegistry, MatchNotFound,
                      MultipleMatches, MustForceSetArgument,
                      OverlappingRegistries, ReservedNameError, add_argument,
@@ -333,3 +333,13 @@ class TestParser(TestCase):
         self.assertEqual(g.first, 3)
         set_argument('first', 4, force=True)
         self.assertEqual(g.first, 4)
+
+    def test_choices(self):
+        add_argument('first', dtype=int, choices=[1, 2, 3])
+        add_argument('second', nargs=2, dtype=int, choices=[1, 2, 3])
+        with self.assertRaises(ChoiceNotAllowed):
+            _parse('--first 4')
+        with self.assertRaises(ChoiceNotAllowed):
+            _parse('--second 1 4')
+        _parse('--second 1 3')
+        self.assertTupleEqual(g.second, (1, 3))

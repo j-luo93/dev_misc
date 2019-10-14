@@ -1,5 +1,6 @@
 import inspect
 from pathlib import Path
+from typing import Any, List
 
 ALLOWED_TYPES = [str, float, int, bool, 'path']
 
@@ -20,15 +21,30 @@ class NArgsNotAllowed(Exception):
     pass
 
 
+class ChoiceNotAllowed(Exception):
+    pass
+
+
 class Argument:
 
-    def __init__(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
+    def __init__(
+            self,
+            name: str,
+            *aliases,
+            scope: str = None,
+            dtype: Any = str,
+            default: Any = None,
+            nargs: Any = 1,
+            msg: str = '',
+            choices: List[Any] = None):
         if dtype not in ALLOWED_TYPES:
             raise DtypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
         if not isinstance(nargs, int) and nargs != '+':
             raise NArgsNotAllowed(f'nargs can only be an int or "+", but got {nargs}.')
         if dtype == bool and nargs != 1:
             raise NArgsNotAllowed(f'For bool arguments, you can only have nargs == 1, but got {nargs}.')
+        if choices is not None and not isinstance(choices, (list, tuple, set)):
+            raise TypeError(f'Expect choices to be a list, tuple or set, but got {type(choices)}.')
 
         # Clean up name.
         name = name.strip('-').strip('_')
@@ -45,6 +61,7 @@ class Argument:
         self.msg = msg
         if aliases:
             self.aliases = aliases
+        self.choices = None if choices is None else set(choices)
         self.value = default
 
     def __repr__(self):
@@ -75,3 +92,9 @@ class Argument:
                     self._value = (self._value, )
             else:
                 self._value = tuple((self.dtype(v) for v in new_value))
+
+            # Check if the new value is in the set of choices.
+            if self.choices is not None and self._value is not None:
+                to_check = self._value if isinstance(self._value, tuple) else (self._value, )
+                if any((v not in self.choices for v in to_check)):
+                    raise ChoiceNotAllowed(f'Some value in {to_check} is not allowed. Only {self.choices} are allowed.')

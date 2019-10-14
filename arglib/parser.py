@@ -48,7 +48,7 @@ class ArgumentScopeNotSupplied(Exception):
     pass
 
 
-def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
+def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg='', choices=None):
     # Walk back to the frame where __qualname__ is defined.
     frame = inspect.currentframe()
     while frame is not None and '__qualname__' not in frame.f_locals:
@@ -59,7 +59,7 @@ def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg=''):
     else:
         scope = frame.f_locals['__qualname__'].split('.')[-1]
     repo = _Repository()
-    repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
+    repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
 
 
 def set_argument(name, value, *, force=False):
@@ -122,11 +122,11 @@ class _Repository:
     def __init__(self):
         self.__dict__ = self._shared_state
 
-    def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg=''):
+    def add_argument(self, name, *aliases, scope=None, dtype=str, default=None, nargs=1, msg='', choices=None):
         if scope is None:
             raise ArgumentScopeNotSupplied('You have to explicitly set scope to a value.')
 
-        arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg)
+        arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
         if arg.name in SUPPORTED_VIEW_ATTRS:
