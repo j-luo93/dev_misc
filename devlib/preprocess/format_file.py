@@ -9,7 +9,7 @@ from types import MethodType
 from typing import List, Tuple
 
 SUPPORTED_FILE_EXTS = {'txt', 'gz', 'pth', 'conll', 'records', 'line_no'}
-SUPPORTED_ACTIONS = {'bpe', 'tok', 'cvt', 'eat'}
+SUPPORTED_ACTIONS = {'bpe', 'tok', 'cvt', 'eat', 'cvtx', 'grf'}
 
 
 @dataclass

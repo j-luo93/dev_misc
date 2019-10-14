@@ -6,7 +6,7 @@ from typing import Dict, List, NamedTuple, Union
 
 from .action import (Align, ApplyBpe, Binarize, Collapse, ConvertEat,
                      Decompress, Download, ExtractJointVocab, Link, Merge,
-                     Parse, Preprocess, Split)
+                     Parse, Preprocess, Split, ConvertNeo)
 from .format_file import FormatFile
 
 Sources = Dict[NamedTuple, Union[FormatFile, str]]
@@ -29,12 +29,19 @@ class EatAuxFiles:
     line_no: FormatFile
 
 
+@dataclass
+class NeoAuxFiles:
+    neo: FormatFile
+    line_no: FormatFile
+
+
 class Pipeline:
 
     def __init__(self, sources: Sources):
         self.sources = sources
         self.vocab = None
         self.eat_aux_files = dict()
+        self.neo_aux_files = dict()
 
     def download(self, **common_info):
         download_to = dict()
@@ -83,6 +90,14 @@ class Pipeline:
             self.sources[k] = eat
             self.eat_aux_files[k] = EatAuxFiles(plain, line_no)
 
+    def convert_neo(self):
+        action = ConvertNeo()
+        for k in self.sources:
+            eat_files = action(self.sources[k])
+            neo, plain, line_no = eat_files
+            self.sources[k] = plain  # NOTE(j_luo)  Use plain text as the source for bpe later.
+            self.neo_aux_files[k] = NeoAuxFiles(neo, line_no)
+
     def extract_joint_vocab(self, src_key1: NamedTuple, src_key2: NamedTuple):
         if self.vocab is not None:
             raise RuntimeError(f'vocab has already been set.')
@@ -97,11 +112,15 @@ class Pipeline:
         action(src, link=tgt)
         self.sources[src_key] = tgt
 
-    def align(self, src_key1: NamedTuple, src_key2: NamedTuple):
+    def align(self, src_key1: NamedTuple, src_key2: NamedTuple, *, op='eat'):
+        if op not in ['eat', 'neo']:
+            raise ValueError(f'op "{op}" not supported.')
+        aux_files = self.eat_aux_files if op == 'eat' else self.neo_aux_files
+
         src1 = self.sources[src_key1]
         src2 = self.sources[src_key2]
-        src_line_no1 = self.eat_aux_files[src_key1].line_no
-        src_line_no2 = self.eat_aux_files[src_key2].line_no
+        src_line_no1 = aux_files[src_key1].line_no
+        src_line_no2 = aux_files[src_key2].line_no
         action = Align()
         new_file1, new_file2 = action([src1, src2], line_nos=[src_line_no1, src_line_no2])
         self.sources[src_key1] = new_file1

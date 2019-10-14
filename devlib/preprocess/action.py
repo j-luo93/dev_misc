@@ -38,7 +38,7 @@ class OverlappingSplit(Exception):
     pass
 
 
-def check_constant(name):
+def _check_constant(name):
     if not getattr(CONSTANTS, name):
         raise InitiateError(f'Forgot to initiate {name}.')
 
@@ -52,12 +52,12 @@ def set_action_constant(name, value):
         CONSTANTS.TOKENIZER = value / 'scripts/tokenizer/tokenizer.perl'
 
 
-def check_explicit_param(name, value):
+def _check_explicit_param(name, value):
     if value is None:
         raise RuntimeError(f'Must pass this {name} explicitly.')
 
 
-def deal_with_iterable(func):
+def _deal_with_iterable(func):
 
     @wraps(func)
     def wrapper(src, *args, **kwargs):
@@ -72,8 +72,8 @@ def deal_with_iterable(func):
     return wrapper
 
 
-@deal_with_iterable
-def check_exists(tgt: Union[List[FormatFile], FormatFile]) -> bool:
+@_deal_with_iterable
+def _check_exists(tgt: Union[List[FormatFile], FormatFile]) -> bool:
     if not isinstance(tgt, list):
         tgt = [tgt]
     for t in tgt:
@@ -84,24 +84,24 @@ def check_exists(tgt: Union[List[FormatFile], FormatFile]) -> bool:
     return True
 
 
-Src = Union[FormatFile, str]
+_Src = Union[FormatFile, str]
 
 
-@deal_with_iterable
-def get_fmt_attr(src: Src, attr: str):
+@_deal_with_iterable
+def _get_fmt_attr(src: _Src, attr: str):
     if isinstance(src, str):
         return None
     else:
         return getattr(src.fmt, attr)
 
 
-@deal_with_iterable
-def try_mkdir(tgt: FormatFile):
+@_deal_with_iterable
+def _try_mkdir(tgt: FormatFile):
     tgt.path.parent.mkdir(parents=True, exist_ok=True)
 
 
-@deal_with_iterable
-def clean_up(tgt: FormatFile):
+@_deal_with_iterable
+def _clean_up(tgt: FormatFile):
     if tgt.exists():
         os.remove(tgt.path)
 
@@ -123,24 +123,24 @@ class Action(ABC):
     def act(self, src, tgt, **kwargs):
         pass
 
-    def __call__(self, src: Union[Src, List[Src]], *, folder: Path = None, **kwargs):
+    def __call__(self, src: Union[_Src, List[_Src]], *, folder: Path = None, **kwargs):
         tgt = self.change_fmt(src, **kwargs)
         if folder is not None:
             tgt = tgt.change_folder(folder)
         cls = type(self)
-        all_fmt_exts = set(get_fmt_attr(src, 'ext'))
+        all_fmt_exts = set(_get_fmt_attr(src, 'ext'))
         if cls.REQUIRED_EXT and len(all_fmt_exts - cls.REQUIRED_EXT) > 0:
             raise RequirementError(f'Not meeting ext requirement. {all_fmt_exts} is not in {cls.REQUIRED_EXT}.')
-        all_fmt_ops = set(get_fmt_attr(src, 'ops'))
+        all_fmt_ops = set(_get_fmt_attr(src, 'ops'))
         if cls.REQUIRED_OPS and not cls.REQUIRED_OPS <= all_fmt_ops:
             raise RequirementError(
                 f'Not meeting ops requirement. {all_fmt_ops} missed something in {cls.REQUIRED_OPS}.')
-        if not check_exists(tgt):
-            try_mkdir(tgt)
+        if not _check_exists(tgt):
+            _try_mkdir(tgt)
             try:
                 self.act(src, tgt, **kwargs)
             except subprocess.CalledProcessError as e:
-                clean_up(tgt)
+                _clean_up(tgt)
                 raise e
             logging.imp(f'Data saved in {tgt}.')
         return tgt
@@ -149,7 +149,7 @@ class Action(ABC):
 class Download(Action):
 
     def change_fmt(self, src: str, *, download_to: FormatFile = None, **kwargs):
-        check_explicit_param('download_to', download_to)
+        _check_explicit_param('download_to', download_to)
         return download_to
 
     def act(self, src: str, tgt: FormatFile, **kwargs):
@@ -159,7 +159,7 @@ class Download(Action):
 class Merge(Action):
 
     def change_fmt(self, src: List[FormatFile], *, merge_to: FormatFile = None, **kwargs):
-        check_explicit_param('merge_to', merge_to)
+        _check_explicit_param('merge_to', merge_to)
         return merge_to
 
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
@@ -186,7 +186,7 @@ class Preprocess(Action):
         return src.add_op('tok')
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
-        check_constant('MOSES_DIR')
+        _check_constant('MOSES_DIR')
         subprocess.check_call(
             f"cat {src} | {CONSTANTS.REPLACE_UNICODE_PUNCT} | {CONSTANTS.NORM_PUNC} -l {src.fmt.lang} | {CONSTANTS.REM_NON_PRINT_CHAR} | {CONSTANTS.TOKENIZER} -l {src.fmt.lang} -no-escape -threads {CONSTANTS.NUM_THREADS} > {tgt}", shell=True)
 
@@ -203,7 +203,7 @@ class ApplyBpe(Action):
         if codes is None:
             raise RuntimeError(f'Must pass codes.')
 
-        check_constant('FASTBPE')
+        _check_constant('FASTBPE')
 
         # For EAT, first figure out how to deal with '<EMPTY>'.
         is_eat = 'eat' in src.fmt.ops
@@ -223,7 +223,7 @@ class Split(Action):
     REQUIRED_EXT = {'txt'}
 
     def change_fmt(self, src: FormatFile, *, line_ids: List[List[int]] = None, **kwargs) -> List[FormatFile]:
-        check_explicit_param('line_ids', line_ids)
+        _check_explicit_param('line_ids', line_ids)
         return src.split(len(line_ids))
 
     def act(self, src: FormatFile, tgt: List[FormatFile], *, line_ids: List[List[int]] = None, **kwargs):
@@ -255,7 +255,7 @@ class ExtractJointVocab(Action):
         return FormatFile.extract_joint_vocab(src)
 
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
-        check_constant('FASTBPE')
+        _check_constant('FASTBPE')
         src_paths = ' '.join([str(s.path) for s in src])
         subprocess.check_call(f'{CONSTANTS.FASTBPE} getvocab {src_paths} > {tgt}', shell=True)
 
@@ -270,9 +270,9 @@ class Binarize(Action):
 
     def act(self, src: FormatFile, tgt: FormatFile, *, vocab: FormatFile = None, **kwargs):
         if vocab is None:
-            raise RuntimeError(f'Must pass vocab.')
+            raise ValueError(f'Must pass vocab.')
 
-        check_constant('MAIN_DIR')
+        _check_constant('MAIN_DIR')
 
         subprocess.check_call(f'{CONSTANTS.MAIN_DIR}/preprocess.py {vocab} {src} {tgt}', shell=True)
 
@@ -280,7 +280,7 @@ class Binarize(Action):
 class Link(Action):
 
     def change_fmt(self, src: FormatFile, *, link: FormatFile = None, **kwargs):
-        check_explicit_param('link', link)
+        _check_explicit_param('link', link)
         return link
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
@@ -338,12 +338,28 @@ class ConvertEat(Action):
         eat_tgt = plain_tgt.add_op('eat')
         line_no_tgt = plain_tgt.change_ext('line_no')
         return eat_tgt, plain_tgt, line_no_tgt
-        # return EatFiles(tgt, EatAuxFiles(plain_tgt, line_no_tgt))
 
     def act(self, src: FormatFile, tgt: Tuple[FormatFile], **kwargs):
         eat, plain, line_no = tgt
         logging.info(f'Converting {src} to EAT format.')
         subprocess.check_call(f'python {CONSTANTS.EAT_DIR / "to_eat.py"} {src} {eat} {plain} {line_no}', shell=True)
+
+
+class ConvertNeo(Action):
+
+    REQUIRED_EXT = {'records'}
+    REQUIRED_OPS = {'tok'}
+
+    def change_fmt(self, src: FormatFile, **kwargs):
+        plain_tgt = src.remove_pair().add_op('cvtx').change_ext('txt')
+        eat_tgt = plain_tgt.add_op('neo')
+        line_no_tgt = plain_tgt.change_ext('line_no')
+        return eat_tgt, plain_tgt, line_no_tgt
+
+    def act(self, src: FormatFile, tgt: Tuple[FormatFile], **kwargs):
+        eat, plain, line_no = tgt
+        logging.info(f'Converting {src} to NEO format.')
+        subprocess.check_call(f'python {CONSTANTS.EAT_DIR / "to_neo.py"} {src} {eat} {plain} {line_no}', shell=True)
 
 
 class Align(Action):
@@ -352,7 +368,7 @@ class Align(Action):
         return FormatFile.align(src)
 
     def act(self, src: List[FormatFile], tgt: List[FormatFile], *, line_nos: List[FormatFile] = None, **kwargs):
-        check_explicit_param('line_nos', line_nos)
+        _check_explicit_param('line_nos', line_nos)
         if not (len(line_nos) == len(src) == len(tgt) == 2):
             raise RuntimeError('Expecting to have 2 files')
 
