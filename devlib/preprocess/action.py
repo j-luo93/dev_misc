@@ -57,19 +57,29 @@ def _check_explicit_param(name, value):
         raise RuntimeError(f'Must pass this {name} explicitly.')
 
 
-def _deal_with_iterable(func):
+def _deal_with_iterable(func=None, *, keep_single=False):
 
-    @wraps(func)
-    def wrapper(src, *args, **kwargs):
-        if isinstance(src, (list, tuple, set)):
-            ret = [func(s, *args, **kwargs) for s in src]
-        else:
-            ret = [func(src, *args, **kwargs)]
-        if isinstance(ret[0], (list, tuple, set)):
-            ret = sum([list(r) for r in ret], list())
-        return list(filter(lambda x: x, ret))
+    def decorator(inner_func):
 
-    return wrapper
+        @wraps(inner_func)
+        def wrapper(src, *args, **kwargs):
+            iter_inp = isinstance(src, (list, tuple, set))
+            if iter_inp:
+                ret = [inner_func(s, *args, **kwargs) for s in src]
+            else:
+                ret = [inner_func(src, *args, **kwargs)]
+                if keep_single:
+                    return ret[0]
+            if isinstance(ret[0], (list, tuple, set)):
+                ret = sum([list(r) for r in ret], list())
+            return list(filter(lambda x: x, ret))
+
+        return wrapper
+
+    if func is None:
+        return decorator
+
+    return decorator(func)
 
 
 @_deal_with_iterable
@@ -106,6 +116,11 @@ def _clean_up(tgt: FormatFile):
         os.remove(tgt.path)
 
 
+@_deal_with_iterable(keep_single=True)
+def _change_folder(tgt: FormatFile, folder: Path):
+    return tgt.change_folder(folder)
+
+
 class Action(ABC):
     """
     An Action object should specify two things:
@@ -126,7 +141,7 @@ class Action(ABC):
     def __call__(self, src: Union[_Src, List[_Src]], *, folder: Path = None, **kwargs):
         tgt = self.change_fmt(src, **kwargs)
         if folder is not None:
-            tgt = tgt.change_folder(folder)
+            tgt = _change_folder(tgt, folder)
         cls = type(self)
         all_fmt_exts = set(_get_fmt_attr(src, 'ext'))
         if cls.REQUIRED_EXT and len(all_fmt_exts - cls.REQUIRED_EXT) > 0:

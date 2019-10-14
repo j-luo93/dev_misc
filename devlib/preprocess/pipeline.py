@@ -82,18 +82,18 @@ class Pipeline:
         for k in self.sources:
             self.sources[k] = action(self.sources[k], vocab=self.vocab)
 
-    def convert_eat(self):
+    def convert_eat(self, *, folder: Path = None):
         action = ConvertEat()
         for k in self.sources:
-            eat_files = action(self.sources[k])
+            eat_files = action(self.sources[k], folder=folder)
             eat, plain, line_no = eat_files
             self.sources[k] = eat
             self.eat_aux_files[k] = EatAuxFiles(plain, line_no)
 
-    def convert_neo(self):
+    def convert_neo(self, *, folder: Path = None):
         action = ConvertNeo()
         for k in self.sources:
-            eat_files = action(self.sources[k])
+            eat_files = action(self.sources[k], folder=folder)
             neo, plain, line_no = eat_files
             self.sources[k] = plain  # NOTE(j_luo)  Use plain text as the source for bpe later.
             self.neo_aux_files[k] = NeoAuxFiles(neo, line_no)
