@@ -93,8 +93,7 @@ def show_args():
 def _print_all_args(log_also=True, and_exit=False):
     output = ''
     for group, args in g.groups.items():
-        if log_also:
-            output += f'{group}:\n'
+        output += f'{group}:\n'
         for arg in args:
             output += f'\t{arg}\n'
     output = output.strip()
@@ -188,7 +187,8 @@ class _Repository:
         for group in arg_groups:
             name, *values = group
             name = name.strip('-')
-            if name == 'h' or name == 'help':  # NOTE(j_luo) Help mode.
+            # NOTE(j_luo) Help mode. Note that if known_only is True, then help is ignored.
+            if not known_only and (name == 'h' or name == 'help'):
                 _print_all_args(log_also=False, and_exit=True)
             try:
                 arg = self._get_argument_by_string(name, source='CLI')
