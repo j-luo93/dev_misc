@@ -11,7 +11,7 @@ def get_tensor(x):
         tensor = torch.from_numpy(x)
     elif torch.is_tensor(x):
         tensor = x
-    elif isinstance(x, list):
+    elif isinstance(x, (list, tuple)):
         tensor = torch.from_numpy(np.asarray(x))
     else:
         raise NotImplementedError(f'Unsupported type {type(x)}.')
