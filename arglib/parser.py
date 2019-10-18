@@ -188,8 +188,10 @@ class _Repository:
             name, *values = group
             name = name.strip('-')
             # NOTE(j_luo) Help mode. Note that if known_only is True, then help is ignored.
-            if not known_only and (name == 'h' or name == 'help'):
-                _print_all_args(log_also=False, and_exit=True)
+            if name == 'h' or name == 'help':
+                if not known_only:
+                    _print_all_args(log_also=False, and_exit=True)
+                continue  # NOTE(j_luo) Some other args might start with "h"!
             try:
                 arg = self._get_argument_by_string(name, source='CLI')
                 if arg.dtype == bool:

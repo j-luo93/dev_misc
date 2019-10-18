@@ -5,5 +5,3 @@
 
 # Mechanism
 Arguments should be declared where they belong. For instance, arguments related to training should be declared in a Trainer class.
-
-# TODO
