@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
@@ -25,23 +25,13 @@ def embed(mod: Module, tensor: Tensor, new_dim_name: str) -> Tensor:
     return mod(tensor.rename(None)).refine_names(*new_names)
 
 
-def collapse(tensor: Tensor, *names: Tuple[str]) -> Tensor:
-    """Collapse a span of named dimensions into one. The collapsed dimension will joined by 'X'."""
-    names = set(names)
-    old_names = _safe_get_name(tensor)
-    dims = sorted([i for i, name in enumerate(old_names) if name in names])
-    start_dim = min(dims)
-    end_dim = max(dims)
-    if end_dim - start_dim != len(dims) - 1:
-        raise ValueError(
-            f'Names are not contiguous! Tensor has names {old_names} and we are trying to collapse {names}.')
-
-    mid_name = 'X'.join(old_names[start_dim: end_dim + 1])
-    new_names = old_names[:start_dim] + (mid_name, ) + old_names[end_dim + 1:]
-
-    shape = tensor.shape
-    mid_dim = 1
-    for dim in shape[start_dim: end_dim + 1]:
-        mid_dim *= dim
-    new_shape = shape[:start_dim] + (mid_dim, ) + shape[end_dim + 1:]
-    return tensor.rename(None).view(*new_shape).refine_names(*new_names)
+def self_attend(mod: Module, tensor: Tensor) -> Tuple[Tensor, Tensor]:
+    names = _safe_get_name(tensor)
+    name_len, name_batch = names[:2]
+    name_len_query = f'{name_len}_query'
+    name_len_key = f'{name_len}_key'
+    tensor = tensor.rename(None)
+    output, weight = mod(tensor, tensor, tensor)
+    output = output.refine_names(*names)
+    weight = weight.refine_names(name_batch, name_len_query, name_len_key)
+    return output, weight

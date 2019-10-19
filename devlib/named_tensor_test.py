@@ -3,7 +3,7 @@ from unittest import TestCase
 import torch
 import torch.nn as nn
 
-from .named_tensor import collapse, embed
+from .named_tensor import embed
 
 
 class TestNamedTensor(TestCase):
@@ -16,8 +16,3 @@ class TestNamedTensor(TestCase):
         emb = nn.Embedding(10, 20)
         tensor = embed(emb, tensor, 'dim')
         self.has_name(tensor, ('batch', 'length', 'dim'))
-
-    def test_collapse(self):
-        tensor = torch.randn(10, 10, 10, names=('a', 'b', 'c'))
-        tensor1 = collapse(tensor, 'b', 'c')
-        self.has_name(tensor1, ('a', 'bXc'))
