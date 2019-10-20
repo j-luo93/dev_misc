@@ -30,20 +30,11 @@ def get_zeros(*shape):
     return get_tensor(torch.zeros(*shape))
 
 
-def get_range(size, ndim, dim):
+def get_range(size, ndim, dim, name=None):
     """Get torch.arange(size), and reshape it to have the shape where all `ndim` dimensions are of size 1 but the `dim` is `size`, and move it to GPU if possible."""
     shape = [1] * dim + [size] + [1] * (ndim - dim - 1)
-    return get_tensor(torch.arange(size).long().reshape(*shape))
-    '''
-    Modified from https://stackoverflow.com/questions/37676539/numpy-padding-matrix-of-different-row-size.
-    '''
-    assert dtype in ['f', 'l']
-    dtype = 'float32' if dtype == 'f' else 'int64'
-    maxlen = max(map(len, a))
-    ret = np.zeros((len(a), maxlen), dtype=dtype)
-    for i, row in enumerate(a):
-        ret[i, :len(row)] += row
-    return ret
+    names = [None] * dim + [name] + [None] * (ndim - dim - 1)
+    return get_tensor(torch.arange(size).long().reshape(*shape).refine_names(*names))
 
 
 def pad_to_dense(a, dtype=np.float32):
