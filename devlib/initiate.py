@@ -19,15 +19,15 @@ def initiate(*registries: Iterable[Registry], logger=False, log_dir=False, log_l
     """
     if registries:
         for reg in registries:
-            add_registry(reg)
+            add_registry(reg, stacklevel=2)
 
     if log_dir:
-        add_argument('log_dir', dtype='path', msg='log directory')
-        add_argument('message', default='', msg='message to append to the config class name')
+        add_argument('log_dir', dtype='path', msg='log directory', stacklevel=2)
+        add_argument('message', default='', msg='message to append to the config class name', stacklevel=2)
     if log_level:
-        add_argument('log_level', default='INFO', msg='log level')
+        add_argument('log_level', default='INFO', msg='log level', stacklevel=2)
     if gpus:
-        add_argument('gpus', dtype=int, nargs='+', msg='GPUs to use')
+        add_argument('gpus', dtype=int, nargs='+', msg='GPUs to use', stacklevel=2)
     parse_args(known_only=True)
 
     # Set an environment variable.
