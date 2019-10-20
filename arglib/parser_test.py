@@ -1,6 +1,7 @@
 import sys
 from copy import deepcopy
 from unittest import TestCase
+import unittest.mock as mock
 
 from .argument import ChoiceNotAllowed, MismatchedNArgs
 from .parser import (DuplicateArgument, DuplicateRegistry, MatchNotFound,
@@ -31,16 +32,16 @@ class TestParser(TestCase):
         self.assertEqual(g.option, 2)
 
     def test_groups(self):
-        add_argument('option1')
-        add_argument('option2')
+        add_argument('option1', scope='default')
+        add_argument('option2', scope='default')
 
         class Group1:
-            add_argument('option3')
-            add_argument('option4')
+            add_argument('option3', scope='Group1')
+            add_argument('option4', scope='Group1')
 
         class Group2:
-            add_argument('option5')
-            add_argument('option6')
+            add_argument('option5', scope='Group2')
+            add_argument('option6', scope='Group2')
 
         default_args = [arg.name for arg in g.groups['default']]
         self.assertListEqual(default_args, ['option1', 'option2'])
@@ -219,8 +220,8 @@ class TestParser(TestCase):
     def _set_up_multiple_registires(self):
         reg1 = Registry('first_config')
         reg2 = Registry('second_config')
-        add_registry(reg1)
-        add_registry(reg2)
+        add_registry(reg1, stacklevel=2)
+        add_registry(reg2, stacklevel=2)
         add_argument('x', dtype=int, default=0)
         add_argument('y', dtype=int, default=0)
         return reg1, reg2
