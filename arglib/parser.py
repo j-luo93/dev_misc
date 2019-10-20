@@ -50,7 +50,7 @@ class ArgumentScopeNotSupplied(Exception):
 
 
 def _get_scope(scope=None, stacklevel=1):
-    # IDEA(j_luo) rename scope to sth else?
+    # TODO(j_luo) rename scope to sth else?
     """
     scope is basically the group that this argument belongs to.
     """
@@ -119,7 +119,7 @@ def _print_all_args(log_also=True, and_exit=False):
     else:
         print(output)
     if and_exit:
-        exit()
+        sys.exit()
 
 
 class _Repository:
