@@ -34,13 +34,15 @@ def embed(mod: Module, tensor: Tensor, new_dim_name: str) -> Tensor:
     return mod(tensor.rename(None)).refine_names(*new_names)
 
 
-def self_attend(mod: Module, tensor: Tensor) -> Tuple[Tensor, Tensor]:
-    names = _safe_get_name(tensor)
-    name_len, name_batch = names[:2]
+def self_attend(mod: Module, tensor: Tensor, new_name: str) -> Tuple[Tensor, Tensor]:
+    old_names = _safe_get_name(tensor)
+    new_names = old_names[:-1] + (new_name,)
+
+    name_len, name_batch = old_names[:2]
     name_len_T = f'{name_len}_T'
     tensor = tensor.rename(None)
     output, weight = mod(tensor, tensor, tensor)
-    output = output.refine_names(*names)
+    output = output.refine_names(*new_names)
     weight = weight.refine_names(name_batch, name_len, name_len_T)
     return output, weight
 
