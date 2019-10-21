@@ -48,11 +48,15 @@ def pad_to_dense(a, dtype=np.float32):
     return ret
 
 
-def get_length_mask(lengths, max_len, dtype=np.bool):
-    """Get a mask that is 1.0 if the index is less than the corresponding length."""
+def get_length_mask(lengths, max_len, name=None) -> torch.BoolTensor:
+    """Get a mask that is True if the index is less than the corresponding length."""
     if max_len < max(lengths):
         raise RuntimeError(f'max_len too small: {max_len} < {max(lengths)}.')
-    mask = get_zeros(len(lengths), max_len)
-    indices = get_range(max_len, 2, 1)
-    mask[indices < get_tensor(lengths).view(-1, 1)] = 1.0
+    if lengths.ndim != 1:
+        raise TypeError(f'Expect lengths to be a vector, but got {lengths.ndim} dimensions.')
+    mask = get_zeros(len(lengths), max_len).bool()
+    indices = get_range(max_len, 2, 1, name=name)
+    within_length = indices < get_tensor(lengths).align_to(lengths.names[0], name)
+    # TODO(j_luo) ugly
+    mask[within_length.rename(None)] = True
     return mask
