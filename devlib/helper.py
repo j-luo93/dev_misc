@@ -22,6 +22,8 @@ def get_tensor(x):
         use_cuda = False
     if use_cuda:
         tensor = tensor.cuda()
+    # NOTE(j_luo) Convert everything back to unnamed tensor so that we don't have to deal with unsupported ops on named tensors later.
+    tensor.rename_(None)
     return tensor
 
 
@@ -30,11 +32,10 @@ def get_zeros(*shape):
     return get_tensor(torch.zeros(*shape))
 
 
-def get_range(size, ndim, dim, name=None):
+def get_range(size, ndim, dim):
     """Get torch.arange(size), and reshape it to have the shape where all `ndim` dimensions are of size 1 but the `dim` is `size`, and move it to GPU if possible."""
     shape = [1] * dim + [size] + [1] * (ndim - dim - 1)
-    names = [None] * dim + [name] + [None] * (ndim - dim - 1)
-    return get_tensor(torch.arange(size).long().reshape(*shape).refine_names(*names))
+    return get_tensor(torch.arange(size).long().reshape(*shape))
 
 
 def pad_to_dense(a, dtype=np.float32):
@@ -48,15 +49,33 @@ def pad_to_dense(a, dtype=np.float32):
     return ret
 
 
-def get_length_mask(lengths, max_len, name=None) -> torch.BoolTensor:
+def get_length_mask(lengths, max_len) -> torch.BoolTensor:
     """Get a mask that is True if the index is less than the corresponding length."""
     if max_len < max(lengths):
         raise RuntimeError(f'max_len too small: {max_len} < {max(lengths)}.')
     if lengths.ndim != 1:
         raise TypeError(f'Expect lengths to be a vector, but got {lengths.ndim} dimensions.')
     mask = get_zeros(len(lengths), max_len).bool()
-    indices = get_range(max_len, 2, 1, name=name)
-    within_length = indices < get_tensor(lengths).align_to(lengths.names[0], name)
+    indices = get_range(max_len, 2, 1)
+    within_length = indices < get_tensor(lengths).unsqueeze(dim=-1)
     # TODO(j_luo) ugly
-    mask[within_length.rename(None)] = True
+    mask[within_length] = True
     return mask
+
+
+def get_dataclass_repr(cls):
+    """A decorator that adds __repr__ to dataclasses so that it can generate repr result for tensors or arrays with only shape information printed out."""
+
+    def __repr__(self):
+        out = list()
+        for attr, anno in self.__annotations__.items():
+            # IDEA(j_luo) need typing for torch tensor types.
+            if anno is np.ndarray or 'Tensor' in anno.__name__:
+                shape = tuple(getattr(self, attr).shape)
+                out.append(f'{attr}: {shape}')
+            else:
+                out.append(f'{attr}={getattr(self, attr)!r}')
+        return f"{cls.__name__}({', '.join(out)})"
+
+    setattr(cls, '__repr__', __repr__)
+    return cls

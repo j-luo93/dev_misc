@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules import MultiheadAttention
 
-from .helper import get_range
-from .named_tensor import adv_index, embed, self_attend, leaky_relu, gather
+from .named_tensor import (adv_index, embed, expand_as, gather,
+                           get_named_range, leaky_relu, self_attend)
 
 
 class TestNamedTensor(TestCase):
@@ -25,8 +25,8 @@ class TestNamedTensor(TestCase):
     def test_self_attend(self):
         mod = MultiheadAttention(40, 8)
         tensor = torch.randn(13, 32, 40, names=['length', 'batch', 'repr'])
-        output, weight = self_attend(mod, tensor)
-        self.has_name(output, ('length', 'batch', 'repr'))
+        output, weight = self_attend(mod, tensor, 'self_attn_repr')
+        self.has_name(output, ('length', 'batch', 'self_attn_repr'))
         self.has_name(weight, ('batch', 'length', 'length_T'))
 
     def test_adv_index(self):
@@ -35,10 +35,6 @@ class TestNamedTensor(TestCase):
         tensor = adv_index(tensor, 'z', index)
         self.has_name(tensor, ('x', 'y', 'w'))
         self.has_shape(tensor, (32, 10, 3))
-
-    def test_get_range_with_name(self):
-        tensor = get_range(10, 2, 1, name='batch')
-        self.has_name(tensor, (None, 'batch'))
 
     def test_leaky_relu(self):
         tensor = torch.randn(32, 10, names=['batch', 'repr'])
@@ -56,3 +52,15 @@ class TestNamedTensor(TestCase):
         ret2 = gather(tensor, index2)
         self.has_name(ret2, ('length', ))
         self.has_shape(ret2, (10, ))
+
+    def test_expand_as(self):
+        tensor = torch.randn(32, names=['batch'])
+        other = torch.randn(32, 10, names=['batch', 'repr'])
+        ret = expand_as(tensor, other)
+        self.has_name(ret, ('batch', 'repr'))
+        self.has_shape(ret, (32, 10))
+
+    def test_get_named_range(self):
+        ret = get_named_range(32, 'batch')
+        self.has_name(ret, ('batch', ))
+        self.has_shape(ret, (32, ))
