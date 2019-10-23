@@ -1,4 +1,5 @@
 import os
+import random
 import time
 from datetime import datetime
 from pathlib import Path
@@ -9,11 +10,11 @@ from arglib import (Registry, add_argument, add_registry, g, get_configs,
 from trainlib import create_logger
 
 
-def initiate(*registries: Iterable[Registry], logger=False, log_dir=False, log_level=False, gpus=False):
+def initiate(*registries: Iterable[Registry], logger=False, log_dir=False, log_level=False, gpus=False, random_seed=False):
     """
     This function does a few things.
     1. Hook registries to arglib.
-    2. Add a few default arguments: log_dir, log_level and message.
+    2. Add a few default arguments: log_dir, log_level, message or random_seed. Note that setting up a random seed is not done by this function since there might be multiple seeds to set up.
     3. Automatically set up log_dir if not already specified and mkdir.
     4. Create a logger with proper log_level and file_path.
     """
@@ -28,6 +29,8 @@ def initiate(*registries: Iterable[Registry], logger=False, log_dir=False, log_l
         add_argument('log_level', default='INFO', msg='log level', stacklevel=2)
     if gpus:
         add_argument('gpus', dtype=int, nargs='+', msg='GPUs to use', stacklevel=2)
+    if random_seed:
+        add_argument('random_seed', dtype=int, default=1234, msg='random seed to set', stacklevel=2)
     parse_args(known_only=True)
 
     # Set an environment variable.

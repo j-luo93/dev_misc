@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Sequence
 
 import pandas as pd
 import torch
@@ -14,10 +14,23 @@ class PandasDataset(Dataset):
         # NOTE(j_luo) The most efficient way to get the n-th example is to access a dataframe by column. Therefore data is transposed first.
         if columns is not None:
             data = data[columns]
+
+        # NOTE(j_luo) There are two copies of data in order to support `select` method.
+        self._orig_data_t = data
+        self._orig_dtypes = tuple(data.dtypes.tolist())
+        self._orig_data = data.T
+        self._orig_columns = tuple(data.columns.tolist())
+        self._set_attributes(data)
+
+    def _set_attributes(self, data: pd.DataFrame):
         self._data_t = data
         self._dtypes = tuple(data.dtypes.tolist())
         self._data = data.T
         self._columns = tuple(data.columns.tolist())
+
+    @property
+    def data(self):
+        return self._orig_data_t
 
     @property
     def dtypes(self):
@@ -32,6 +45,10 @@ class PandasDataset(Dataset):
 
     def __getitem__(self, idx: int):
         return self._data[idx]
+
+    def select(self, mask: pd.DataFrame):
+        data = self._orig_data_t[mask].reset_index(drop=True)
+        self._set_attributes(data)
 
 
 def pandas_collate_fn(batch: List[pd.Series]) -> pd.DataFrame:
