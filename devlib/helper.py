@@ -63,19 +63,24 @@ def get_length_mask(lengths, max_len) -> torch.BoolTensor:
     return mask
 
 
-def get_dataclass_repr(cls):
-    """A decorator that adds __repr__ to dataclasses so that it can generate repr result for tensors or arrays with only shape information printed out."""
+def dataclass_size_repr(self):
+    """ __repr__ for dataclasses so that bt can generate repr result for tensors or arrays with only shape information printed out."""
+    out = list()
+    for attr, anno in self.__annotations__.items():
+        # IDEA(j_luo) need typing for torch tensor types.
+        if anno is np.ndarray or 'Tensor' in anno.__name__:
+            shape = tuple(getattr(self, attr).shape)
+            out.append(f'{attr}: {shape}')
+        else:
+            out.append(f'{attr}={getattr(self, attr)!r}')
+    cls = type(self)
+    return f"{cls.__name__}({', '.join(out)})"
 
-    def __repr__(self):
-        out = list()
-        for attr, anno in self.__annotations__.items():
-            # IDEA(j_luo) need typing for torch tensor types.
-            if anno is np.ndarray or 'Tensor' in anno.__name__:
-                shape = tuple(getattr(self, attr).shape)
-                out.append(f'{attr}: {shape}')
-            else:
-                out.append(f'{attr}={getattr(self, attr)!r}')
-        return f"{cls.__name__}({', '.join(out)})"
 
-    setattr(cls, '__repr__', __repr__)
-    return cls
+def dataclass_cuda(self):
+    """Move tensors to gpu if possible."""
+    for attr, anno in self.__annotations__.items():
+        if anno is not np.ndarray:
+            tensor = getattr(self, attr)
+            names = tensor.names
+            setattr(self, attr, get_tensor(tensor).refine_names(*names))
