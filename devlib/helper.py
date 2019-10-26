@@ -23,7 +23,7 @@ def get_tensor(x):
     if use_cuda:
         tensor = tensor.cuda()
     # NOTE(j_luo) Convert everything back to unnamed tensor so that we don't have to deal with unsupported ops on named tensors later.
-    tensor.rename_(None)
+    # tensor.rename_(None)
     return tensor
 
 
@@ -82,5 +82,5 @@ def dataclass_cuda(self):
     for attr, anno in self.__annotations__.items():
         if anno is not np.ndarray:
             tensor = getattr(self, attr)
-            names = tensor.names
-            setattr(self, attr, get_tensor(tensor).refine_names(*names))
+            # names = tensor.names
+            setattr(self, attr, get_tensor(tensor))  # .refine_names(*names))
