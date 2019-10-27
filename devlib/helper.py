@@ -71,8 +71,11 @@ def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.B
 
 def dataclass_size_repr(self):
     """ __repr__ for dataclasses so that bt can generate repr result for tensors or arrays with only shape information printed out."""
+    # TODO(j_luo) also print out names?
+    # TODO(j_luo) should inheirt old __repr__ so that some fields with repr == False are taken care of.
     out = list()
-    for attr, anno in self.__annotations__.items():
+    for attr, field in self.__dataclass_fields__.items():
+        anno = field.type
         # IDEA(j_luo) need typing for torch tensor types.
         if anno is np.ndarray or 'Tensor' in anno.__name__:
             shape = tuple(getattr(self, attr).shape)
@@ -85,8 +88,10 @@ def dataclass_size_repr(self):
 
 def dataclass_cuda(self):
     """Move tensors to gpu if possible."""
-    for attr, anno in self.__annotations__.items():
-        if anno is not np.ndarray:
+    for attr, field in self.__dataclass_fields__.items():
+        anno = field.type
+        if 'Tensor' in anno.__name__:
             tensor = getattr(self, attr)
-            # names = tensor.names
-            setattr(self, attr, get_tensor(tensor))  # .refine_names(*names))
+            names = tensor.names
+            # TODO(j_luo) use something from named_tensor.py?
+            setattr(self, attr, get_tensor(tensor).refine_names(*names))
