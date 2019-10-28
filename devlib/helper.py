@@ -1,6 +1,6 @@
 import os
 from functools import wraps
-from typing import List, TypeVar, Union
+from typing import Any, List, TypeVar, Union
 
 import numpy as np
 import torch
@@ -89,6 +89,11 @@ def get_trainable_params(mod: nn.Module, named: bool = True):
                 yield param
 
 
+def _is_tensor_type(x: Any) -> bool:
+    attr = '__name__' if hasattr(x, '__name__') else '_name'
+    return 'Tensor' in getattr(x, attr)
+
+
 def dataclass_size_repr(self):
     """ __repr__ for dataclasses so that bt can generate repr result for tensors or arrays with only shape information printed out."""
     # TODO(j_luo) also print out names?
@@ -97,7 +102,7 @@ def dataclass_size_repr(self):
     for attr, field in self.__dataclass_fields__.items():
         anno = field.type
         # IDEA(j_luo) need typing for torch tensor types.
-        if anno is np.ndarray or 'Tensor' in anno.__name__:
+        if anno is np.ndarray or _is_tensor_type(anno):
             shape = tuple(getattr(self, attr).shape)
             out.append(f'{attr}: {shape}')
         else:
@@ -113,8 +118,9 @@ def dataclass_cuda(self: T) -> T:
     """Move tensors to gpu if possible."""
     for attr, field in self.__dataclass_fields__.items():
         anno = field.type
-        if 'Tensor' in anno.__name__:
+        if _is_tensor_type(anno):
             tensor = getattr(self, attr)
             names = tensor.names
             # TODO(j_luo) use something from named_tensor.py?
             setattr(self, attr, get_tensor(tensor).refine_names(*names))
+    return self

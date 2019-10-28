@@ -28,7 +28,7 @@ def _is_in_git_repo() -> bool:
 def _get_head_commit_id() -> str:
     if _is_in_git_repo():
         res = subprocess.run('git rev-parse --short HEAD', shell=True, capture_output=True)
-        if res.return_code == 0:
+        if res.returncode == 0:
             return res.stdout.decode('utf8').strip()
         else:
             return ''
