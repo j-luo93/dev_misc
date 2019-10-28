@@ -1,9 +1,10 @@
 import os
 from functools import wraps
-from typing import List, Union
+from typing import List, TypeVar, Union
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 # IDEA(j_luo) Tensor generic type!
 Tensor = torch.Tensor
@@ -69,6 +70,25 @@ def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.B
     return mask
 
 
+def freeze(mod: nn.Module):
+    """Freeze all parameters within a module."""
+    for p in mod.parameters():
+        p.requires_grad = False
+    for m in mod.children():
+        freeze(m)
+
+
+def get_trainable_params(mod: nn.Module, named: bool = True):
+    if named:
+        for name, param in mod.named_parameters():
+            if param.requires_grad:
+                yield name, param
+    else:
+        for param in mod.parameters():
+            if param.requires_grad:
+                yield param
+
+
 def dataclass_size_repr(self):
     """ __repr__ for dataclasses so that bt can generate repr result for tensors or arrays with only shape information printed out."""
     # TODO(j_luo) also print out names?
@@ -86,7 +106,10 @@ def dataclass_size_repr(self):
     return f"{cls.__name__}({', '.join(out)})"
 
 
-def dataclass_cuda(self):
+T = TypeVar('T')
+
+
+def dataclass_cuda(self: T) -> T:
     """Move tensors to gpu if possible."""
     for attr, field in self.__dataclass_fields__.items():
         anno = field.type
