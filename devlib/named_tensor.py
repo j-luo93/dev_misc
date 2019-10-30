@@ -1,3 +1,6 @@
+import ctypes
+import warnings
+from functools import wraps
 from typing import Dict, List, Tuple, Union
 
 import torch
@@ -12,6 +15,53 @@ Tensor = torch.Tensor
 
 class MustBeNamed(Exception):
     pass
+
+# IDEA(j_luo) maybe use this for deal with add_argument?
+
+
+_incref = ctypes.pythonapi.Py_IncRef
+_incref.argtypes = [ctypes.py_object]
+_incref.restype = None
+_increfnone = lambda: _incref(None)
+
+
+def run_once(func):
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not wrapper.has_run:
+            wrapper.has_run = True
+            return func(args, **kwargs)
+
+    wrapper.has_run = False
+    return wrapper
+
+
+@run_once
+def patch_named_tensors(self):
+    warnings.warn('This is a hack.')
+    # refine_names.
+    old_refine_names = torch.Tensor.refine_names
+
+    @wraps(old_refine_names)
+    def refine_names(self, *args, **kwargs):
+        ret = old_refine_names(self, *args, **kwargs)
+        for _ in range(len(args)):
+            _increfnone()
+        return ret
+
+    torch.Tensor.refine_names = refine_names
+
+    # state_dict. Named tensors are not serializable.
+    old_state_dict = torch.nn.Module.state_dict
+
+    @wraps(old_state_dict)
+    def state_dict(self, *args, **kwargs):
+        ret = old_state_dict(self, *args, **kwargs)
+        ret = {k: v.rename(None) for k, v in ret.items()}
+        return ret
+
+    torch.nn.Module.state_dict = state_dict
 
 
 def _check_names(tensor: Tensor) -> bool:
