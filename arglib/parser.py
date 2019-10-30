@@ -1,8 +1,10 @@
-import logging
+from typing import no_type_check_decorator
 import inspect
+import logging
 import re
 import sys
 from collections import defaultdict
+from dataclasses import dataclass, field
 from functools import wraps
 from types import SimpleNamespace
 from typing import Dict
@@ -48,16 +50,31 @@ class ArgumentScopeNotSupplied(Exception):
     pass
 
 
-def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg='', choices=None):
-    # Walk back to the frame where __qualname__ is defined.
-    frame = inspect.currentframe()
-    while frame is not None and '__qualname__' not in frame.f_locals:
-        frame = frame.f_back
-    # scope is basically the group that this argument belongs to.
-    if frame is None:
-        scope = 'default'
-    else:
-        scope = frame.f_locals['__qualname__'].split('.')[-1]
+def _get_scope(scope=None, stacklevel=1):
+    # TODO(j_luo) rename scope to sth else?
+    """
+    scope is basically the group that this argument belongs to.
+    """
+    # Get the proper frame according to stacklevel first.
+    if scope is None:
+        frame = inspect.currentframe()
+        for _ in range(stacklevel):
+            frame = frame.f_back
+        # NOTE(j_luo) This means that it's within class definition.
+        module_name = frame.f_globals['__name__']
+        if '__qualname__' in frame.f_locals:
+            qualname = frame.f_locals['__qualname__']
+            scope = '.'.join([module_name, qualname])
+        else:
+            scope = module_name
+
+    return scope
+
+
+def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg='', choices=None, scope=None, stacklevel=1):
+    """When stacklevel == 1, the scope will be computed based on the caller of `add_argument`."""
+    scope = _get_scope(scope, stacklevel=1 + stacklevel)
+
     repo = _Repository()
     repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
 
@@ -76,9 +93,10 @@ def parse_args(known_only=False):
     return repo.parse_args(known_only=known_only)
 
 
-def add_registry(registry):
+def add_registry(registry, stacklevel=1):
     repo = _Repository()
-    repo.add_registry(registry)
+    scope = _get_scope(stacklevel=stacklevel + 1)
+    repo.add_registry(registry, scope)
 
 
 def get_configs():
@@ -102,7 +120,7 @@ def _print_all_args(log_also=True, and_exit=False):
     else:
         print(output)
     if and_exit:
-        exit()
+        sys.exit()
 
 
 class _Repository:
@@ -142,9 +160,9 @@ class _Repository:
         arg = self._get_argument_by_string(name)
         arg.value = value
 
-    def add_registry(self, registry):
+    def add_registry(self, registry, scope):
         try:
-            arg = self.add_argument(registry.name, scope='default', dtype=str)
+            arg = self.add_argument(registry.name, scope=scope, dtype=str)
         except DuplicateArgument:
             raise DuplicateRegistry(f'A registry named "{registry.name}" already exists.')
         self._registries[arg.name] = registry
@@ -188,8 +206,10 @@ class _Repository:
             name, *values = group
             name = name.strip('-')
             # NOTE(j_luo) Help mode. Note that if known_only is True, then help is ignored.
-            if not known_only and (name == 'h' or name == 'help'):
-                _print_all_args(log_also=False, and_exit=True)
+            if name == 'h' or name == 'help':
+                if not known_only:
+                    _print_all_args(log_also=False, and_exit=True)
+                continue  # NOTE(j_luo) Some other args might start with "h"!
             try:
                 arg = self._get_argument_by_string(name, source='CLI')
                 if arg.dtype == bool:
@@ -232,6 +252,7 @@ def add_magic(cls):
     return cls
 
 
+# IDEA(j_luo) Try subclassing dict directly or use a proxy?
 @add_magic
 class _RepositoryView:
 
@@ -287,6 +308,7 @@ ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
 # IDEA(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
+# FIXME(j_luo) This would break down if annotations is imported from __future__.
 def init_g_attr(cls=None, *, default='none'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
     But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
