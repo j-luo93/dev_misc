@@ -184,13 +184,20 @@ class Format:
 @propagate_to
 class FormatFile:
 
-    def __init__(self, folder: Path, main: str, lang: str, ext: str, pair: str = None, ops: Tuple[str] = None, part: int = None):
+    def __init__(self, folder: Path, main: str, lang: str, ext: str, *, pair: Optional[str] = None, ops: Optional[Tuple[str]] = None, part: Optional[int] = None, compat_main: Optional[str] = None):
+        """
+        `compat_main` is used by files that do not follow the name format conventions.
+        """
         lang_info = LangInfo(lang, pair)
         self.fmt = Format(folder, main, lang_info, ext, ops=ops, part=part)
+        self.compat_main = compat_main
 
     @property
     def path(self):
-        return Path(str(self.fmt))
+        if self.compat_main is None:
+            return Path(str(self.fmt))
+        else:
+            return Path(self.fmt.folder / self.compat_main)
 
     @classmethod
     def from_fmt(cls, fmt: Format):
