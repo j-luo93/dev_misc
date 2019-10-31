@@ -87,9 +87,13 @@ def reset_repo():
     _Repository.reset()
 
 
-def parse_args(known_only=False):
+def parse_args(known_only=False, show=False):
+    """If `show is set to True, call `show_args` after parsing."""
     repo = _Repository()
-    return repo.parse_args(known_only=known_only)
+    ret = repo.parse_args(known_only=known_only)
+    if show:
+        show_args()
+    return ret
 
 
 def add_registry(registry, stacklevel=1):
