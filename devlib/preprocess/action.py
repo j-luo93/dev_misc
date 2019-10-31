@@ -396,14 +396,16 @@ class Align(Action):
 
         # Get parallel ids.
         ids = None
+        all_line_ids = list()
         for l in line_nos:
             with l.open('r', encoding='utf8') as fl:
-                l_ids = set(map(int, fl.read().split()))
-            ids = l_ids if ids is None else ids & l_ids
+                l_ids = list(map(int, fl.read().split()))
+                all_line_ids.append(l_ids)
+            ids = set(l_ids) if ids is None else ids & set(l_ids)
 
         # Write to tgt.
-        for s, t in zip(src, tgt):
+        for s, t, l_ids in zip(src, tgt, all_line_ids):
             with s.open('r', encoding='utf8') as fs, t.open('w', encoding='utf8') as ft:
-                for i, line in enumerate(fs):
+                for line, i in zip(fs, l_ids):
                     if i in ids:
                         ft.write(line)
