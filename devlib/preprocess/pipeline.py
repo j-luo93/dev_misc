@@ -1,15 +1,19 @@
+import random
+import subprocess
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Union
+from typing import Dict, Hashable, List, Union
+
+from deprecated import deprecated
 
 from .action import (Align, ApplyBpe, Binarize, Collapse, ConvertEat,
-                     Decompress, Download, ExtractJointVocab, Link, Merge,
-                     Parse, Preprocess, Split, ConvertNeo)
+                     ConvertNeo, Decompress, Download, ExtractJointVocab, Link,
+                     Merge, Parse, Preprocess, Split)
 from .format_file import FormatFile
 
-Sources = Dict[NamedTuple, Union[FormatFile, str]]
+Sources = Dict[Hashable, Union[FormatFile, str]]
 
 
 def _apply_action(action_cls):
@@ -47,6 +51,7 @@ class Pipeline:
         download_to = dict()
         for k in self.sources:
             info = deepcopy(common_info)
+            # TODO(j_luo) This is making assumptions about the key (`k`) that doesn't necessarily hold true.
             info.update(k._asdict())
             fmt_file = FormatFile(**info)
             download_to[k] = fmt_file
@@ -55,7 +60,7 @@ class Pipeline:
             action(self.sources[k], download_to=download_to[k])
         self.sources = download_to
 
-    def merge(self, to_merge_keys: List[NamedTuple], merge_to_key: NamedTuple, merge_to: FormatFile):
+    def merge(self, to_merge_keys: List[Hashable], merge_to_key: Hashable, merge_to: FormatFile):
         to_merge = [self.sources[key] for key in to_merge_keys]
         action = Merge()
         action(to_merge, merge_to=merge_to)
@@ -98,7 +103,7 @@ class Pipeline:
             self.sources[k] = plain  # NOTE(j_luo)  Use plain text as the source for bpe later.
             self.neo_aux_files[k] = NeoAuxFiles(neo, line_no)
 
-    def extract_joint_vocab(self, src_key1: NamedTuple, src_key2: NamedTuple):
+    def extract_joint_vocab(self, src_key1: Hashable, src_key2: Hashable):
         if self.vocab is not None:
             raise RuntimeError(f'vocab has already been set.')
         action = ExtractJointVocab()
@@ -106,13 +111,13 @@ class Pipeline:
         src2 = self.sources[src_key2]
         self.vocab = action([src1, src2])
 
-    def link(self, src_key: NamedTuple, tgt: FormatFile):
+    def link(self, src_key: Hashable, tgt: FormatFile):
         action = Link()
         src = self.sources[src_key]
         action(src, link=tgt)
         self.sources[src_key] = tgt
 
-    def align(self, src_key1: NamedTuple, src_key2: NamedTuple, *, op='eat'):
+    def align(self, src_key1: Hashable, src_key2: Hashable, *, op='eat'):
         if op not in ['eat', 'neo']:
             raise ValueError(f'op "{op}" not supported.')
         aux_files = self.eat_aux_files if op == 'eat' else self.neo_aux_files

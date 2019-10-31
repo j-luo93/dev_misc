@@ -59,6 +59,7 @@ def _check_explicit_param(name, value):
 
 
 def _deal_with_iterable(func=None, *, keep_single=False):
+    # TODO(j_luo) add doc here. It's not very intuitive.
 
     def decorator(inner_func):
 
@@ -122,6 +123,11 @@ def _change_folder(tgt: FormatFile, folder: Path):
     return tgt.change_folder(folder)
 
 
+def _run(cmd: str):
+    """Wrapper for subprocess.run"""
+    subprocess.run(cmd, shell=True, capture_output=True)
+
+
 class Action(ABC):
     """
     An Action object should specify two things:
@@ -180,7 +186,7 @@ class Merge(Action):
 
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
         all_paths = ' '.join([str(fmt_f.path) for fmt_f in src])
-        subprocess.check_call(f'cat {all_paths} > {tgt}', shell=True)
+        _run(f'cat {all_paths} > {tgt}')
 
 
 class Decompress(Action):
