@@ -68,9 +68,41 @@ class Pipeline:
             del self.sources[key]
         self.sources[merge_to_key] = merge_to
 
-    def split(self, to_split_key: NamedTuple, line_ids: List[List[int]], take: int):
+    def split(self, to_split_key: Hashable, line_ids: List[List[int]], take: int):
         action = Split()
         self.sources[to_split_key] = action(self.sources[to_split_key], line_ids=line_ids)[take]
+
+    def split_n_parts(self, to_split_keys: List[Hashable], n_parts: int, take: List[int]):
+        # TODO(j_luo) make getting line count lazy? maybe we can move a lot of this to action.py
+        if not isinstance(to_split_keys, list) or not isinstance(take, list):
+            raise TypeError(
+                f'Expect both to_split_keys and take to be a list, but got {type(to_split_keys)} and {type(take)} respectively.')
+        if len(to_split_keys) != len(take):
+            raise ValueError(
+                f'Expect to_split_keys and take to have the same length, but got {len(to_split_keys)} and {len(take)} respectively.')
+
+        all_res = list()
+        for key in to_split_keys:
+            path = self.sources[key].path
+            res = subprocess.run(f'cat {path} | wc -l', capture_output=True, shell=True)
+            if res.returncode != 0:
+                raise OSError('Cannot obtain line count for some reason.')
+            all_res.append(int(res.stdout.decode('utf8')))
+        if any([other != all_res[0] for other in all_res[1:]]):
+            raise RuntimeError(f'Files with key {to_split_keys} do not have the same line counts.')
+
+        num_lines = all_res[0]
+        indices = list(range(num_lines))
+        random.shuffle(indices)
+        lines_per_part = (num_lines + n_parts - 1) // n_parts
+        line_ids = list()
+        for i in range(n_parts):
+            start = lines_per_part * i
+            end = start + lines_per_part
+            line_ids.append(indices[start: end])
+        for key, take_id in zip(to_split_keys, take):
+            action = Split()
+            self.sources[key] = action(self.sources[key], line_ids=line_ids)[take_id]
 
     decompress = _apply_action(Decompress)
     preprocess = _apply_action(Preprocess)
