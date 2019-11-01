@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from devlib import get_range
+import devlib.helper as helper
 
 Module = nn.Module
 Tensor = torch.Tensor
@@ -31,14 +31,14 @@ def run_once(func):
     def wrapper(*args, **kwargs):
         if not wrapper.has_run:
             wrapper.has_run = True
-            return func(args, **kwargs)
+            return func(*args, **kwargs)
 
     wrapper.has_run = False
     return wrapper
 
 
 @run_once
-def patch_named_tensors(self):
+def patch_named_tensors():
     warnings.warn('This is a hack.')
     # refine_names.
     old_refine_names = torch.Tensor.refine_names
@@ -71,6 +71,7 @@ def _check_names(tensor: Tensor) -> bool:
     return tensor.names
 
 # TODO(j_luo) Document name changes for the following helper functions.
+# TODO(j_luo) They can all be patched really.
 
 
 def leaky_relu(tensor: Tensor, **kwargs) -> Tensor:
@@ -131,4 +132,4 @@ def expand_as(tensor: Tensor, other: Tensor) -> Tensor:
 
 
 def get_named_range(size: int, name: str) -> Tensor:
-    return get_range(size, 1, 0).refine_names(name)
+    return helper.get_range(size, 1, 0).refine_names(name)

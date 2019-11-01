@@ -1,3 +1,4 @@
+import logging
 import os
 from functools import wraps
 from typing import Any, List, TypeVar, Union
@@ -5,6 +6,8 @@ from typing import Any, List, TypeVar, Union
 import numpy as np
 import torch
 import torch.nn as nn
+
+import devlib.named_tensor as named_tensor
 
 # IDEA(j_luo) Tensor generic type!
 Tensor = torch.Tensor
@@ -116,11 +119,21 @@ T = TypeVar('T')
 
 def dataclass_cuda(self: T) -> T:
     """Move tensors to gpu if possible."""
+    named_tensor.patch_named_tensors()
+
     for attr, field in self.__dataclass_fields__.items():
         anno = field.type
         if _is_tensor_type(anno):
             tensor = getattr(self, attr)
             names = tensor.names
-            # TODO(j_luo) use something from named_tensor.py?
             setattr(self, attr, get_tensor(tensor).refine_names(*names))
     return self
+
+
+def debug_stats(message: str, tensor: Tensor):
+    logging.info(f'{message} nir:')
+    logging.info(f'\tshape/device:\t{tensor.shape}/{tensor.device}')
+    logging.info('\tNAN:\t' + str(torch.isnan(tensor).any().item()))
+    if not tensor.dtype is torch.bool:
+        logging.info('\tINF:\t' + str(torch.isinf(tensor).any().item()))
+    logging.info(f'\tmax/min:\t{tensor.max().item()}/{tensor.min().item()}')
