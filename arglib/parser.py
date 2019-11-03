@@ -241,7 +241,7 @@ class _Repository:
         return g
 
 
-SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items']
+SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items', 'groups']
 SUPPORTED_VIEW_MAGIC = ['__contains__', '__iter__']
 
 
