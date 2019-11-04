@@ -124,3 +124,8 @@ def dataclass_cuda(self: T) -> T:
             # TODO(j_luo) use something from named_tensor.py?
             setattr(self, attr, get_tensor(tensor).refine_names(*names))
     return self
+
+
+def check_explicit_arg(value):
+    if value is None:
+        raise ValueError('Must explicitly pass a non-None value.')
