@@ -127,8 +127,8 @@ class Pipeline:
             self.sources[k] = eat
             self.eat_aux_files[k] = EatAuxFiles(plain, line_no)
 
-    def convert_neo(self, *, folder: Path = None):
-        action = ConvertNeo()
+    def convert_neo(self, *, linear: bool = False, folder: Path = None):
+        action = ConvertNeo(linear=linear)
         for k in self.sources:
             eat_files = action(self.sources[k], folder=folder)
             neo, plain, line_no = eat_files

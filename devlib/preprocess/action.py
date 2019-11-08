@@ -125,7 +125,7 @@ def _change_folder(tgt: FormatFile, folder: Path):
 
 def _run(cmd: str):
     """Wrapper for subprocess.run"""
-    subprocess.run(cmd, shell=True, capture_output=True)
+    subprocess.run(cmd, shell=True)
 
 
 class Action(ABC):
@@ -372,16 +372,22 @@ class ConvertNeo(Action):
     REQUIRED_EXT = {'records'}
     REQUIRED_OPS = {'tok'}
 
+    def __init__(self, *, linear: bool = False):
+        self.linear = linear
+
     def change_fmt(self, src: FormatFile, **kwargs):
-        plain_tgt = src.remove_pair().add_op('cvtx').change_ext('txt')
-        eat_tgt = plain_tgt.add_op('neo')
+        plain_tgt = src.remove_pair().add_op('cvtxl').change_ext('txt')
+        neo_tgt = plain_tgt.add_op('neo')
         line_no_tgt = plain_tgt.change_ext('line_no')
-        return eat_tgt, plain_tgt, line_no_tgt
+        return neo_tgt, plain_tgt, line_no_tgt
 
     def act(self, src: FormatFile, tgt: Tuple[FormatFile], **kwargs):
-        eat, plain, line_no = tgt
+        neo, plain, line_no = tgt
         logging.info(f'Converting {src} to NEO format.')
-        subprocess.check_call(f'python {CONSTANTS.EAT_DIR / "to_neo.py"} {src} {eat} {plain} {line_no}', shell=True)
+        cmd = f'python {CONSTANTS.EAT_DIR / "to_neo.py"} {src} {neo} {plain} {line_no}'
+        if self.linear:
+            cmd += ' --linear'
+        _run(cmd)
 
 
 class Align(Action):
