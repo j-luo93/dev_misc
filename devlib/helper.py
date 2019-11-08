@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 from functools import wraps
 from typing import Any, List, TypeVar, Union
 
@@ -90,6 +91,7 @@ def get_trainable_params(mod: nn.Module, named: bool = True):
 
 
 def _is_tensor_type(x: Any) -> bool:
+    # IDEA(j_luo) This is quite hacky. Need typing for torch tensor types.
     attr = '__name__' if hasattr(x, '__name__') else '_name'
     return 'Tensor' in getattr(x, attr)
 
@@ -101,7 +103,6 @@ def dataclass_size_repr(self):
     out = list()
     for attr, field in self.__dataclass_fields__.items():
         anno = field.type
-        # IDEA(j_luo) need typing for torch tensor types.
         if anno is np.ndarray or _is_tensor_type(anno):
             shape = tuple(getattr(self, attr).shape)
             out.append(f'{attr}: {shape}')
@@ -115,7 +116,7 @@ T = TypeVar('T')
 
 
 def dataclass_cuda(self: T) -> T:
-    """Move tensors to gpu if possible."""
+    """Move tensors to gpu if possible. This is in-place."""
     for attr, field in self.__dataclass_fields__.items():
         anno = field.type
         if _is_tensor_type(anno):
@@ -124,6 +125,17 @@ def dataclass_cuda(self: T) -> T:
             # TODO(j_luo) use something from named_tensor.py?
             setattr(self, attr, get_tensor(tensor).refine_names(*names))
     return self
+
+
+def dataclass_numpy(self: T) -> T:
+    """Convert tensors to numpy arrays if possible. This is out-of-place."""
+    ret = deepcopy(self)
+    for attr, field in ret.__dataclass_fields__.items():
+        anno = field.type
+        if _is_tensor_type(anno):
+            tensor = getattr(ret, attr)
+            setattr(ret, attr, tensor.cpu().numpy())
+    return ret
 
 
 def check_explicit_arg(value):
