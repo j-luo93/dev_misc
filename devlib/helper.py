@@ -1,5 +1,6 @@
 import os
 from copy import deepcopy
+from dataclasses import fields
 from functools import wraps
 from typing import Any, List, TypeVar, Union
 
@@ -101,7 +102,8 @@ def dataclass_size_repr(self):
     # TODO(j_luo) also print out names?
     # TODO(j_luo) should inheirt old __repr__ so that some fields with repr == False are taken care of.
     out = list()
-    for attr, field in self.__dataclass_fields__.items():
+    for field in fields(self):
+        attr = field.name
         anno = field.type
         if anno is np.ndarray or _is_tensor_type(anno):
             shape = tuple(getattr(self, attr).shape)
@@ -117,7 +119,8 @@ T = TypeVar('T')
 
 def dataclass_cuda(self: T) -> T:
     """Move tensors to gpu if possible. This is in-place."""
-    for attr, field in self.__dataclass_fields__.items():
+    for field in fields(self):
+        attr = field.name
         anno = field.type
         if _is_tensor_type(anno):
             tensor = getattr(self, attr)
