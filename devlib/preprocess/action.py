@@ -227,16 +227,16 @@ class ApplyBpe(Action):
 
         _check_constant('FASTBPE')
 
-        # For EAT, first figure out how to deal with '<EMPTY>'.
-        is_eat = 'eat' in src.fmt.ops
-        if is_eat:
+        # For EAT/Neo, first figure out how to deal with '<EMPTY>'.
+        is_eat_or_neo = 'eat' in src.fmt.ops or 'neo' in src.fmt.ops
+        if is_eat_or_neo:
             empty_out = subprocess.check_output(
                 f'{CONSTANTS.FASTBPE} applybpe_stream {codes} < <(echo "<EMPTY>")', shell=True, executable='/bin/bash')  # NOTE Have to use bash for this since process substitution is a bash-only feature.
             empty_out = empty_out.decode('utf8').strip()
 
         # Now apply BPE to everything.
         subprocess.check_call(f'{CONSTANTS.FASTBPE} applybpe {tgt} {src} {codes}', shell=True)
-        if is_eat:
+        if is_eat_or_neo:
             subprocess.check_call(f"sed -i 's/{empty_out}/<EMPTY>/g' {tgt}", shell=True)
 
 
