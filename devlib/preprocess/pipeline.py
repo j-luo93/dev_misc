@@ -119,8 +119,8 @@ class Pipeline:
         for k in self.sources:
             self.sources[k] = action(self.sources[k], vocab=self.vocab)
 
-    def convert_eat(self, *, folder: Path = None):
-        action = ConvertEat()
+    def convert_eat(self, *, graph: bool = False, folder: Path = None):
+        action = ConvertEat(graph=graph)
         for k in self.sources:
             eat_files = action(self.sources[k], folder=folder)
             eat, plain, line_no = eat_files

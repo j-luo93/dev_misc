@@ -355,8 +355,12 @@ class ConvertEat(Action):
     REQUIRED_EXT = {'records'}
     REQUIRED_OPS = {'tok'}
 
+    def __init__(self, *, graph: bool = False):
+        self.graph = graph
+
     def change_fmt(self, src: FormatFile, **kwargs):
-        plain_tgt = src.remove_pair().add_op('cvt').change_ext('txt')
+        op = 'cvtg' if self.graph else 'cvt'
+        plain_tgt = src.remove_pair().add_op(op).change_ext('txt')
         eat_tgt = plain_tgt.add_op('eat')
         line_no_tgt = plain_tgt.change_ext('line_no')
         return eat_tgt, plain_tgt, line_no_tgt
@@ -364,7 +368,10 @@ class ConvertEat(Action):
     def act(self, src: FormatFile, tgt: Tuple[FormatFile], **kwargs):
         eat, plain, line_no = tgt
         logging.info(f'Converting {src} to EAT format.')
-        subprocess.check_call(f'python {CONSTANTS.EAT_DIR / "to_eat.py"} {src} {eat} {plain} {line_no}', shell=True)
+        cmd = f'python {CONSTANTS.EAT_DIR / "to_eat.py"} {src} {eat} {plain} {line_no}'
+        if self.graph:
+            cmd += ' --graph'
+        _run(cmd)
 
 
 class ConvertNeo(Action):
@@ -376,7 +383,8 @@ class ConvertNeo(Action):
         self.linear = linear
 
     def change_fmt(self, src: FormatFile, **kwargs):
-        plain_tgt = src.remove_pair().add_op('cvtxl').change_ext('txt')
+        op = 'cvtxl' if self.linear else 'cvtx'
+        plain_tgt = src.remove_pair().add_op(op).change_ext('txt')
         neo_tgt = plain_tgt.add_op('neo')
         line_no_tgt = plain_tgt.change_ext('line_no')
         return neo_tgt, plain_tgt, line_no_tgt
