@@ -67,7 +67,6 @@ def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.B
     mask = get_zeros(len(lengths), max_len, cpu=cpu).bool()
     indices = get_range(max_len, 2, 1, cpu=cpu)
     within_length = indices < get_tensor(lengths, cpu=cpu).unsqueeze(dim=-1)
-    # TODO(j_luo) ugly
     mask[within_length] = True
     return mask
 
@@ -92,9 +91,16 @@ def get_trainable_params(mod: nn.Module, named: bool = True):
 
 
 def _is_tensor_type(x: Any) -> bool:
-    # IDEA(j_luo) This is quite hacky. Need typing for torch tensor types.
+    # IDEA(j_luo) This is extremely hacky. Need typing for torch tensor types.
     attr = '__name__' if hasattr(x, '__name__') else '_name'
-    return 'Tensor' in getattr(x, attr)
+    ret = False
+    if hasattr(x, attr):
+        value = getattr(x, attr)
+        ret = ret | (value is not None and 'Tensor' in getattr(x, attr))
+    if hasattr(x, '__args__'):
+        for type_ in x.__args__:
+            ret = ret | _is_tensor_type(type_)
+    return ret
 
 
 def dataclass_size_repr(self):
@@ -121,12 +127,11 @@ def dataclass_cuda(self: T) -> T:
     """Move tensors to gpu if possible. This is in-place."""
     for field in fields(self):
         attr = field.name
-        anno = field.type
-        if _is_tensor_type(anno):
-            tensor = getattr(self, attr)
-            names = tensor.names
+        value = getattr(self, attr)
+        if torch.is_tensor(value):
             # TODO(j_luo) use something from named_tensor.py?
-            setattr(self, attr, get_tensor(tensor).refine_names(*names))
+            names = value.names
+            setattr(self, attr, get_tensor(value).refine_names(*names))
     return self
 
 

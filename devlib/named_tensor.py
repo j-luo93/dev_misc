@@ -3,8 +3,10 @@ import inspect
 import warnings
 from dataclasses import dataclass
 from functools import wraps
+from itertools import chain
 from types import ModuleType
-from typing import Callable, Dict, List, Tuple, Union
+from typing import (Any, Callable, Dict, List, Optional, Sequence, Tuple, Type,
+                    Union)
 
 import torch
 import torch.nn as nn
@@ -19,7 +21,7 @@ Tensor = torch.Tensor
 @dataclass
 class Patch:
     module: ModuleType
-    unpatched: Callable
+    unpatched: Optional[Callable]
     patched: Callable
 
 
@@ -29,6 +31,10 @@ def _get_caller_name(stacklevel=1):
         frame = frame.f_back
         stacklevel -= 1
     return frame.f_code.co_name
+
+
+_Patchable = Union[ModuleType, Type]
+_Patched = Union[Type, Callable]
 
 
 class _Patcher:
@@ -45,13 +51,22 @@ class _Patcher:
         self._patches: Dict[str, Patch] = dict()
         self._patched = False
 
-    def patch(self, module: ModuleType):
-        """Note that this doesn't actually patch the functions -- it just hooks them. To actually patch them, use `patch_named_tensors`."""
+    def patch(self, patchable: _Patchable, create: bool = False):
+        """
+        Note that this doesn't actually patch the functions -- it just hooks them. To actually patch them, use `patch_named_tensors`.
+        If `create` is set to True, create a new method instead.
+        """
 
-        def decorator(patched):
+        def decorator(patched: _Patched):
             name = patched.__name__
-            unpatched = getattr(module, name)
-            patch = Patch(module, unpatched, patched)
+            if create:
+                if hasattr(patchable, name):
+                    raise NameError(
+                        f'A method/function named "{name}" in {patchable} already exists. Cannot create a new one for it.')
+                unpatched = None
+            else:
+                unpatched = getattr(patchable, name)
+            patch = Patch(patchable, unpatched, patched)
             if name in self._patches:
                 raise NameError(f'Duplicate name "{name}".')
             self._patches[name] = patch
@@ -59,10 +74,20 @@ class _Patcher:
 
         return decorator
 
-    def call_unpatched(self, *args, stacklevel: int = 1, **kwargs):
-        caller_name = _get_caller_name(stacklevel=stacklevel + 1)
+    def patch_cls(self, module: ModuleType, cls_name: Type, base_cls: Type):
+        """Patch a class. This works by defining a subclass of `parent_cls` (the class named `cls_name` in `module`) with a new `base_cls` as the first parent class."""
+        parent_cls = getattr(module, cls_name)
+        new_cls = type(cls_name, (base_cls, parent_cls), dict())
+        self.patch(module)(new_cls)
+
+    def call_unpatched(self, *args, stacklevel: int = 1, caller_name: str = None, **kwargs):
+        if caller_name is None:
+            caller_name = _get_caller_name(stacklevel=stacklevel + 1)
         patch = self._patches[caller_name]
-        return patch.unpatched(*args, **kwargs)
+        unpatched = patch.unpatched
+        if unpatched is None:
+            raise RuntimeError(f'You should not have called this function -- this is created, not patched.')
+        return unpatched(*args, **kwargs)
 
     def patch_named_tensors(self):
         if self._patched:
@@ -81,6 +106,7 @@ class _Patcher:
 
 _patcher = _Patcher()
 patch = _patcher.patch
+patch_cls = _patcher.patch_cls
 patch_named_tensors = _patcher.patch_named_tensors
 unpatch_named_tensors = _patcher.unpatch_named_tensors
 call_unpatched = _patcher.call_unpatched
@@ -96,12 +122,150 @@ def refine_names(self, *args, **kwargs):
     return ret
 
 
-@patch(torch.nn.functional)
-def leaky_relu(tensor: Tensor, *args, **kwargs):
-    names = tensor.names
-    ret = call_unpatched(tensor.rename(None), *args, **kwargs)
-    return ret.refine_names(*names)
+@patch(torch.Tensor, create=True)
+def hide_names(self):
+    if self.has_names() and not hasattr(self, '_hidden_names'):
+        self._hidden_names = self.names
+        self.rename_(None)
+    return self
 
+
+@patch(torch.Tensor, create=True)
+def reveal_names(self):
+    if hasattr(self, '_hidden_names'):
+        self.rename_(*self._hidden_names)
+        del self._hidden_names
+    return self
+
+
+class NoName:
+
+    def __init__(self, *args, **kwargs):
+        all_args = chain(iter(args), iter(kwargs.values()))
+        self._to_track = list(filter(torch.is_tensor, all_args))
+
+    def __enter__(self):
+        for tensor in self._to_track:
+            tensor.hide_names()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for tensor in self._to_track:
+            tensor.reveal_names()
+
+
+_to_inherit: List[Tuple[_Patchable, List[str]]] = [
+    (torch.nn.functional, ['leaky_relu']),
+    (torch, ['zeros_like']),
+    (torch.Tensor, ['addcmul_', 'addcdiv_'])
+]
+
+
+def _gen_function(patchable: _Patchable, name: str):
+    old_func = getattr(patchable, name)
+
+    @wraps(old_func)
+    def wrapped(tensor: Tensor, *args, **kwargs):
+        with NoName(tensor, *args, **kwargs):
+            ret = call_unpatched(tensor, *args, caller_name=name, **kwargs)
+        return ret.refine_names(*tensor.names)
+
+    return wrapped
+
+
+# TODO(j_luo) This is side-effect.
+for patchable, names in _to_inherit:
+    for name in names:
+        patched = _gen_function(patchable, name)
+        patch(patchable)(patched)
+
+
+@patch(torch.nn.Module)
+def state_dict(self, *args, **kwargs):
+    ret = call_unpatched(self, *args, **kwargs)
+    ret = {k: v.rename(None) for k, v in ret.items()}
+    return ret
+
+
+@patch(torch.nn.Module)
+def _apply(self, func: Callable):
+
+    @wraps(func)
+    def wrapped(tensor: torch.Tensor):
+        tensor.hide_names()
+        return func(tensor)
+
+    def post_apply(module: torch.nn.Module):
+        for child in module.children():
+            post_apply(child)
+
+        for key, param in module._parameters.items():
+            if param is not None:
+                param.reveal_names()
+                if param.grad is not None:
+                    param.grad.reveal_names()
+
+        for key, buf in module._buffers.items():
+            if buf is not None:
+                buf.reveal_names()
+        return module
+
+    # This process is broken down into two, so that the first part can still be safely used. The second part is hacked because it should be fine to change attributes of tensors.
+    ret = call_unpatched(self, wrapped)
+    post_apply(ret)
+
+    return ret
+
+
+NameType = Union[Sequence[str], str]
+
+
+@patch(torch)
+def cat(tensors: Sequence[Tensor], dim: int = 0, out: Tensor = None, *, names: Optional[NameType] = None, new_name: Optional[str] = None):
+    if names is not None:
+        # NOTE(j_luo) If both arguments are provided, we use the new interface for named tensors.
+        if isinstance(names, str):
+            names = [names] * len(tensors)
+        if len(names) != len(tensors):
+            raise ValueError(f'Mismatched lengths for names and tensors.')
+        dims = [tensor.names.index(name) for tensor, name in zip(tensors, names)]
+        if any(dims[0] != dim for dim in dims[1:]):
+            # IDEA(j_luo) Maybe we can add automatic re-alignment.
+            raise ValueError(f'Not all names are in the same dimension.')
+        dim = dims[0]
+
+        remaining_names = [tensor.names[:dim] + tensor.names[dim + 1:] for tensor in tensors]
+        if any(remaining_names[0] != rn for rn in remaining_names[1:]):
+            raise ValueError(f'Not all remaining renames are matched.')
+
+        new_names = tensors[0].names[:dim] + (new_name, ) + tensors[0].names[dim + 1:]
+        out = call_unpatched([tensor.rename(None) for tensor in tensors], dim=dim, out=out)
+        return out.refine_names(*new_names)
+    else:
+        return call_unpatched(tensors, dim=dim, out=out)
+
+
+class NamedModule:
+
+    def _refine_names_helper(self, attr_path: List[str], names: Sequence[str]):
+        if len(attr_path) == 0:
+            raise RuntimeError(f'Path to the attribute has length 0.')
+        elif len(attr_path) == 1:
+            tensor_name = attr_path[0]
+            tensor = getattr(self, tensor_name)
+            named_tensor = tensor.refine_names(*names)
+            # NOTE(j_luo) `refine_names` is out-of-place. To make sure that the same parameter/tensor is tracked (e.g., by an optimizer),
+            # we can use `rename_` instead.
+            tensor.rename_(*named_tensor.names)
+        else:
+            child_module = getattr(self, attr_path[0])
+            child_module._refine_names_helper(attr_path[1:], *names)
+
+    def refine_names(self, attr_name: str, names: Sequence[str]):
+        dot_separated = attr_name.split('.')
+        self._refine_names_helper(dot_separated, names)
+
+
+patch_cls(torch.nn, 'Linear', NamedModule)
 
 # -------------------------------------------------------------- #
 #                      Old helper functions                      #
