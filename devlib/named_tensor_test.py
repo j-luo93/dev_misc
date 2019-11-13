@@ -5,16 +5,19 @@ import torch.nn as nn
 from torch.nn.modules import MultiheadAttention
 
 from .named_tensor import (adv_index, embed, expand_as, gather,
-                           get_named_range, leaky_relu, self_attend)
+                           get_named_range, leaky_relu, self_attend, patch_named_tensors, unpatch_named_tensors)
 
 
-class TestNamedTensor(TestCase):
+class TestNamedTensorBase(TestCase):
 
     def has_name(self, tensor, names):
         self.assertTupleEqual(tensor.names, names)
 
     def has_shape(self, tensor, shape):
         self.assertTupleEqual(tensor.shape, shape)
+
+
+class TestNamedTensorOldHelperFunctions(TestNamedTensorBase):
 
     def test_embed(self):
         tensor = torch.randint(10, (10, 10)).refine_names('batch', 'length')
@@ -35,11 +38,6 @@ class TestNamedTensor(TestCase):
         tensor = adv_index(tensor, 'z', index)
         self.has_name(tensor, ('x', 'y', 'w'))
         self.has_shape(tensor, (32, 10, 3))
-
-    def test_leaky_relu(self):
-        tensor = torch.randn(32, 10, names=['batch', 'repr'])
-        tensor = leaky_relu(tensor)
-        self.has_name(tensor, ('batch', 'repr'))
 
     def test_gather(self):
         tensor = torch.randn(32, 10, names=['batch', 'length'])
@@ -64,3 +62,17 @@ class TestNamedTensor(TestCase):
         ret = get_named_range(32, 'batch')
         self.has_name(ret, ('batch', ))
         self.has_shape(ret, (32, ))
+
+
+class TestNamedTensorPath(TestNamedTensorBase):
+
+    def setUp(self):
+        patch_named_tensors()
+
+    def tearDown(self):
+        unpatch_named_tensors()
+
+    def test_leaky_relu(self):
+        tensor = torch.randn(32, 10, names=['batch', 'repr'])
+        tensor = leaky_relu(tensor)
+        self.has_name(tensor, ('batch', 'repr'))
