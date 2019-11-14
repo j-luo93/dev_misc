@@ -44,3 +44,7 @@ class TestName(TestCase):
     def test_init_with_str(self):
         name = Name('snake', 'this is a str test ')
         self.assertEqual(name.value, 'this_is_a_str_test')
+
+    def test_hyphen(self):
+        name = Name('hyphen', 'hyphen test')
+        self.assertEqual(name.value, 'hyphen-test')

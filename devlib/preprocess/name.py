@@ -9,8 +9,8 @@ class Name:
     """A Name instance that takes care of all different forms of str."""
 
     def __init__(self, fmt: str, words: Union[Sequence[str], str]):
-        if fmt not in ['snake', 'camel']:
-            raise ValueError(f'fmt can only be "snake" or "camel".')
+        if fmt not in ['snake', 'camel', 'hyphen']:
+            raise ValueError(f'fmt can only be "snake", "hyphen" or "camel".')
         if isinstance(words, str):
             words = words.split()
         self._fmt = fmt
@@ -22,9 +22,12 @@ class Name:
 
     @property
     def value(self):
-        ret = '_'.join(self._words)
-        if self._fmt == 'camel':
-            ret = inflection.camelize(ret)
+        if self._fmt == 'hyphen':
+            ret = '-'.join(self._words)
+        else:
+            ret = '_'.join(self._words)
+            if self._fmt == 'camel':
+                ret = inflection.camelize(ret)
         return ret
 
     @property
@@ -48,6 +51,10 @@ class Name:
     @property
     def snake(self) -> Name:
         return Name('snake', self._words)
+
+    @property
+    def hyphen(self) -> Name:
+        return Name('hyphen', self._words)
 
     def __repr__(self):
         return f'Name("{self._name}", fmt={self._fmt})'

@@ -1,5 +1,6 @@
 """An Action class that takes care of the file and its transformation."""
 
+import tempfile
 import logging
 import os
 # TODO(j_luo) Use subprocess.run
@@ -279,7 +280,9 @@ class ExtractJointVocab(Action):
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
         _check_constant('FASTBPE')
         src_paths = ' '.join([str(s.path) for s in src])
-        subprocess.check_call(f'{CONSTANTS.FASTBPE} getvocab {src_paths} > {tgt}', shell=True)
+        with tempfile.NamedTemporaryFile('w+', encoding='utf8') as fout:
+            _run(f'cat {src_paths} > {fout.name}')
+            subprocess.check_call(f'{CONSTANTS.FASTBPE} getvocab {fout.name} > {tgt}', shell=True)
 
 
 class Binarize(Action):
@@ -301,12 +304,18 @@ class Binarize(Action):
 
 class Link(Action):
 
+    def __init__(self, *, relative: bool = True):
+        self.relative = relative
+
     def change_fmt(self, src: FormatFile, *, link: FormatFile = None, **kwargs):
         _check_explicit_param('link', link)
         return link
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
-        tgt.path.symlink_to(src.path)
+        src_path = src.path
+        if self.relative:
+            src_path = src.path.relative_to(src.path.parent)
+        tgt.path.symlink_to(src_path)
 
 
 class Parse(Action):

@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
-from typing import Dict, Hashable, List, Union
+from typing import Dict, Hashable, List, Union, Optional
 
 from deprecated import deprecated
 
@@ -13,7 +13,15 @@ from .action import (Align, ApplyBpe, Binarize, Collapse, ConvertEat,
                      Merge, Parse, Preprocess, Split)
 from .format_file import FormatFile
 
-Sources = Dict[Hashable, Union[FormatFile, str]]
+
+@dataclass
+class EatNeoFiles:
+    main: FormatFile
+    plain: FormatFile
+    line_no: Optional[FormatFile] = None
+
+
+Sources = Dict[Hashable, Union[FormatFile, str, EatNeoFiles]]
 
 
 def _apply_action(action_cls):
@@ -22,16 +30,15 @@ def _apply_action(action_cls):
     def wrapper(self, **kwargs):
         action = action_cls()
         for k in self.sources:
-            self.sources[k] = action(self.sources[k], **kwargs)
+            if isinstance(self.sources[k], (str, FormatFile)):
+                self.sources[k] = action(self.sources[k], **kwargs)
+            else:
+                src = self.sources[k]
+                main = action(src.main, **kwargs)
+                plain = action(src.plain, **kwargs)
+                self.sources[k] = EatNeoFiles(main, plain, src.line_no)
 
     return wrapper
-
-
-@dataclass
-class EatNeoFiles:
-    main: FormatFile
-    plain: FormatFile
-    line_no: FormatFile
 
 
 class Pipeline:
@@ -39,7 +46,7 @@ class Pipeline:
     def __init__(self, sources: Sources):
         self.sources = sources
         self.vocab = None
-        self.eat_neo_files = dict()
+        # self.eat_neo_files = dict()
 
     def download(self, **common_info):
         download_to = dict()
@@ -111,47 +118,79 @@ class Pipeline:
     def binarize(self):
         action = Binarize()
         for k in self.sources:
-            self.sources[k] = action(self.sources[k], vocab=self.vocab)
+            # HACK(j_luo) Maybe there is way to combine this with _apply_action?
+            src = self.sources[k]
+            if isinstance(src, (FormatFile, str)):
+                self.sources[k] = action(src, vocab=self.vocab)
+            else:
+                main = action(src.main, vocab=self.vocab)
+                plain = action(src.plain, vocab=self.vocab)
+                self.sources[k] = EatNeoFiles(main, plain, src.line_no)
 
     def convert_eat(self, *, graph: bool = False, folder: Path = None):
         action = ConvertEat(graph=graph)
         for k in self.sources:
             eat_files = action(self.sources[k], folder=folder)
             eat, plain, line_no = eat_files
-            self.sources[k] = plain if graph else eat
-            self.eat_neo_files[k] = EatNeoFiles(eat, plain, line_no)
+            # self.sources[k] = plain if graph else eat
+            # self.eat_neo_files[k] = EatNeoFiles(eat, plain, line_no)
+            self.sources[k] = EatNeoFiles(eat, plain, line_no)
 
     def convert_neo(self, *, linear: bool = False, folder: Path = None):
         action = ConvertNeo(linear=linear)
         for k in self.sources:
             eat_files = action(self.sources[k], folder=folder)
             neo, plain, line_no = eat_files
-            self.sources[k] = neo if linear else plain  # NOTE(j_luo)  Use plain text as the source for bpe later.
-            self.eat_neo_files[k] = EatNeoFiles(neo, plain, line_no)
+            # self.sources[k] = neo if linear else plain  # NOTE(j_luo)  Use plain text as the source for bpe later.
+            # self.eat_neo_files[k] = EatNeoFiles(neo, plain, line_no)
+            # TODO(j_luo) write a class like FormatFiles that can be a collection of files. But doesn't self.sources already do that?
+            self.sources[k] = EatNeoFiles(neo, plain, line_no)
 
-    def extract_joint_vocab(self, src_key1: Hashable, src_key2: Hashable):
+    def extract_joint_vocab(self, *src_keys: Hashable):
         if self.vocab is not None:
             raise RuntimeError(f'vocab has already been set.')
         action = ExtractJointVocab()
-        src1 = self.sources[src_key1]
-        src2 = self.sources[src_key2]
-        self.vocab = action([src1, src2])
+        srcs = list()
+        for src_key in src_keys:
+            src = self.sources[src_key]
+            if isinstance(src, (FormatFile, str)):
+                srcs.append(src)
+            else:
+                srcs.extend([src.main, src.plain])
+        self.vocab = action(srcs)
 
     def link(self, src_key: Hashable, tgt: FormatFile):
         action = Link()
         src = self.sources[src_key]
-        action(src, link=tgt)
-        self.sources[src_key] = tgt
+        if isinstance(src, (str, FormatFile)):
+            action(src, link=tgt)
+            self.sources[src_key] = tgt
+        else:
+            main = src.main
+            plain = src.plain
+            action(plain, link=tgt)
+            if 'eat' in main.fmt.ops:
+                main_tgt = tgt.add_op('eat')
+            elif 'neo' in main.fmt.ops:
+                main_tgt = tgt.add_op('neo')
+            else:
+                raise ValueError('Not sure why you got here.')
+            action(main, link=main_tgt)
 
     def align(self, src_key1: Hashable, src_key2: Hashable, *, op='eat'):
         if op not in ['eat', 'neo']:
             raise ValueError(f'op "{op}" not supported.')
 
-        src1 = self.sources[src_key1]
-        src2 = self.sources[src_key2]
-        src_line_no1 = self.eat_neo_files[src_key1].line_no
-        src_line_no2 = self.eat_neo_files[src_key2].line_no
+        src_files1 = self.sources[src_key1]
+        src_files2 = self.sources[src_key2]
+        src_line_no1 = src_files1.line_no
+        src_line_no2 = src_files2.line_no
         action = Align()
-        new_file1, new_file2 = action([src1, src2], line_nos=[src_line_no1, src_line_no2])
-        self.sources[src_key1] = new_file1
-        self.sources[src_key2] = new_file2
+        src_main1 = src_files1.main
+        src_main2 = src_files2.main
+        new_main_file1, new_main_file2 = action([src_main1, src_main2], line_nos=[src_line_no1, src_line_no2])
+        src_plain1 = src_files1.plain
+        src_plain2 = src_files2.plain
+        new_plain_file1, new_plain_file2 = action([src_plain1, src_plain2], line_nos=[src_line_no1, src_line_no2])
+        self.sources[src_key1] = EatNeoFiles(new_main_file1, new_plain_file1)
+        self.sources[src_key2] = EatNeoFiles(new_main_file2, new_plain_file2)

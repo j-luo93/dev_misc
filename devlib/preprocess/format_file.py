@@ -163,14 +163,14 @@ class Format:
         return new_fmt
 
     @classmethod
-    def extract_joint_vocab(cls, src: List['Format']):
-        f1, f2 = get_two_languages(src)
-        new_fmt = f1.clone()
+    def extract_joint_vocab(cls, srcs: List['Format']):
+        new_fmt = srcs[0].clone()
         new_fmt.main = 'vocab'
         new_fmt.lang_info.lang = None
-        if not f1.pair or not f2.pair or f1.pair != f2.pair:
-            # This is for non-parallel vocab.
-            new_fmt.lang_info.pair = '+'.join(sorted([f1.lang, f2.lang]))
+        new_fmt.lang_info.pair = 'joint'
+        # if not f1.pair or not f2.pair or f1.pair != f2.pair:
+        #     # This is for non-parallel vocab.
+        #     new_fmt.lang_info.pair = '+'.join(sorted([f1.lang, f2.lang]))
         return new_fmt
 
     @classmethod
