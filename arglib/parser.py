@@ -78,9 +78,15 @@ def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg='', choic
     repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
 
 
-def set_argument(name, value, *, force=False):
+def set_argument(name, value, *, _force=False):
     repo = _Repository()
-    repo.set_argument(name, value, force=force)
+    repo.set_argument(name, value, _force=_force)
+
+
+def test_with_arguments(*, _force=False, **kwargs):
+    for name, value in kwargs.items():
+        add_argument(name, dtype=type(value))
+        set_argument(name, value, _force=_force)
 
 
 def reset_repo():
@@ -157,9 +163,9 @@ class _Repository:
             self._arg_trie[f'no_{arg.name}'] = arg
         return arg
 
-    def set_argument(self, name, value, *, force=False):
-        if not force:
-            raise MustForceSetArgument(f'You must explicitliy set force = True in order to set an argument.')
+    def set_argument(self, name, value, *, _force=False):
+        if not _force:
+            raise MustForceSetArgument(f'You must explicitliy set _force to True in order to set an argument.')
         arg = self._get_argument_by_string(name)
         arg.value = value
 

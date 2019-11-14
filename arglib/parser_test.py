@@ -307,7 +307,7 @@ class TestParser(TestCase):
         add_argument('first', dtype=int, default=1)
         with self.assertRaises(MustForceSetArgument):
             set_argument('first', 2)
-        set_argument('first', 2, force=True)
+        set_argument('first', 2, _force=True)
         self.assertEqual(g.first, 2)
 
     def test_parse_args_known_only(self):
@@ -332,7 +332,7 @@ class TestParser(TestCase):
 
         g.load_state_dict(state_dict)
         self.assertEqual(g.first, 3)
-        set_argument('first', 4, force=True)
+        set_argument('first', 4, _force=True)
         self.assertEqual(g.first, 4)
 
     def test_choices(self):
