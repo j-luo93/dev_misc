@@ -1,4 +1,9 @@
-"""A FormatFile instance follows a strict convention of naming files."""
+"""
+A FormatFile instance follows a strict convention of naming files.
+In general, a file has one extension format (e.g., txt or gz), but could have multiple different operations done on it.
+For instance, you can tokenize the file and then use BPE on it. The order of the operations should be reflected in the order
+of the file name. In this case, it should `<main>.tok.bpe.txt`.
+"""
 
 import os
 from copy import deepcopy
