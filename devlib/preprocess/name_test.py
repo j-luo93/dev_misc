@@ -40,3 +40,7 @@ class TestName(TestCase):
     def test_format(self):
         name = Name('snake', ['{name}', 'is', 'a', 'test'])
         self.assertEqual(name.format(name='That').value, 'That_is_a_test')
+
+    def test_init_with_str(self):
+        name = Name('snake', 'this is a str test ')
+        self.assertEqual(name.value, 'this_is_a_str_test')

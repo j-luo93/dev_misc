@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, Union
 
 import inflection
 
@@ -8,23 +8,13 @@ import inflection
 class Name:
     """A Name instance that takes care of all different forms of str."""
 
-    def __init__(self, fmt: str, words: Sequence[str]):
+    def __init__(self, fmt: str, words: Union[Sequence[str], str]):
         if fmt not in ['snake', 'camel']:
             raise ValueError(f'fmt can only be "snake" or "camel".')
+        if isinstance(words, str):
+            words = words.split()
         self._fmt = fmt
         self._words = words
-
-    # def __hash__(self):
-    #     return hash(self.canonicalize().value)
-
-    # def __eq__(self, other):
-    #     return self.canonicalize().value == other.canonicalize().value
-
-    # def canonicalize(self) -> Name:
-    #     if self._fmt == 'camel':
-    #         return self.snake
-    #     else:
-    #         return self
 
     def format(self, **kwargs) -> Name:
         formatted = filter(lambda s: s, [word.format(**kwargs) for word in self._words])

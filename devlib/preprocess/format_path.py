@@ -13,7 +13,7 @@ folder:
 Then you can specify the entire structure for each file as folder/subfolder*/file*.
 """
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Sequence, Union
 
 from .name import Name
 
@@ -23,7 +23,7 @@ class FormatPath:
     def __init__(self):
         self._names: List[Name] = list()
 
-    def add(self, words: Sequence[str], fmt: str = 'snake'):
+    def add(self, words: Union[Sequence[str], str], fmt: str = 'snake'):
         name = Name(fmt, words)
         self._names.append(name)
 
