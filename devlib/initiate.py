@@ -87,7 +87,7 @@ def initiate(*registries: Registry, logger=False, log_dir=False, log_level=False
             if log_dir.exists():
                 time.sleep(1)
             else:
-                set_argument('log_dir', log_dir, force=True)
+                set_argument('log_dir', log_dir, _force=True)
                 log_dir.mkdir(parents=True)
                 break
 

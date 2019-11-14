@@ -1,6 +1,7 @@
 import logging
 import os
-from functools import wraps
+from dataclasses import dataclass
+from functools import partial, update_wrapper, wraps
 from typing import Any, List, TypeVar, Union
 
 import numpy as np
@@ -90,6 +91,10 @@ def get_trainable_params(mod: nn.Module, named: bool = True):
         for param in mod.parameters():
             if param.requires_grad:
                 yield param
+
+
+# NOTE(j_luo) Batch dataclasses will inherit the customized __repr__.
+batch_class = update_wrapper(partial(dataclass, repr=False), dataclass)
 
 
 def _is_tensor_type(x: Any) -> bool:
