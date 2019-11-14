@@ -52,8 +52,7 @@ class Pipeline:
         download_to = dict()
         for k in self.sources:
             info = deepcopy(common_info)
-            # TODO(j_luo) This is making assumptions about the key (`k`) that doesn't necessarily hold true.
-            info.update(k._asdict())
+            info.update(k.__dict__)
             fmt_file = FormatFile(**info)
             download_to[k] = fmt_file
         action = Download()
