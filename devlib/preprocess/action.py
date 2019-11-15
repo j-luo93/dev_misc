@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import List, Tuple, Union
 
 import stanfordnlp
+from devlib import check_explicit_arg
 
 from .format_file import FormatFile
 
@@ -52,11 +53,6 @@ def set_action_constant(name, value):
         CONSTANTS.NORM_PUNC = value / 'scripts/tokenizer/normalize-punctuation.perl'
         CONSTANTS.REM_NON_PRINT_CHAR = value / 'scripts/tokenizer/remove-non-printing-char.perl'
         CONSTANTS.TOKENIZER = value / 'scripts/tokenizer/tokenizer.perl'
-
-
-def _check_explicit_param(name, value):
-    if value is None:
-        raise RuntimeError(f'Must pass this {name} explicitly.')
 
 
 def _deal_with_iterable(func=None, *, keep_single=False):
@@ -172,7 +168,7 @@ class Action(ABC):
 class Download(Action):
 
     def change_fmt(self, src: str, *, download_to: FormatFile = None, **kwargs):
-        _check_explicit_param('download_to', download_to)
+        check_explicit_param(download_to)
         return download_to
 
     def act(self, src: str, tgt: FormatFile, **kwargs):
@@ -182,7 +178,7 @@ class Download(Action):
 class Merge(Action):
 
     def change_fmt(self, src: List[FormatFile], *, merge_to: FormatFile = None, **kwargs):
-        _check_explicit_param('merge_to', merge_to)
+        check_explicit_param(merge_to)
         return merge_to
 
     def act(self, src: List[FormatFile], tgt: FormatFile, **kwargs):
@@ -246,7 +242,7 @@ class Split(Action):
     REQUIRED_EXT = {'txt'}
 
     def change_fmt(self, src: FormatFile, *, line_ids: List[List[int]] = None, **kwargs) -> List[FormatFile]:
-        _check_explicit_param('line_ids', line_ids)
+        check_explicit_param(line_ids)
         return src.split(len(line_ids))
 
     def act(self, src: FormatFile, tgt: List[FormatFile], *, line_ids: List[List[int]] = None, **kwargs):
@@ -308,7 +304,7 @@ class Link(Action):
         self.relative = relative
 
     def change_fmt(self, src: FormatFile, *, link: FormatFile = None, **kwargs):
-        _check_explicit_param('link', link)
+        check_explicit_param(link)
         return link
 
     def act(self, src: FormatFile, tgt: FormatFile, **kwargs):
@@ -413,7 +409,7 @@ class Align(Action):
         return FormatFile.align(src)
 
     def act(self, src: List[FormatFile], tgt: List[FormatFile], *, line_nos: List[FormatFile] = None, **kwargs):
-        _check_explicit_param('line_nos', line_nos)
+        check_explicit_param(line_nos)
         if not (len(line_nos) == len(src) == len(tgt) == 2):
             raise RuntimeError('Expecting to have 2 files')
 

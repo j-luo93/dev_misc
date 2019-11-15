@@ -1,6 +1,7 @@
 import logging
 import os
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, fields
 from functools import partial, update_wrapper, wraps
 from typing import Any, List, TypeVar, Union
 
@@ -69,7 +70,6 @@ def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.B
     mask = get_zeros(len(lengths), max_len, cpu=cpu).bool()
     indices = get_range(max_len, 2, 1, cpu=cpu)
     within_length = indices < get_tensor(lengths, cpu=cpu).unsqueeze(dim=-1)
-    # TODO(j_luo) ugly
     mask[within_length] = True
     return mask
 
@@ -98,8 +98,16 @@ batch_class = update_wrapper(partial(dataclass, repr=False), dataclass)
 
 
 def _is_tensor_type(x: Any) -> bool:
+    # IDEA(j_luo) This is extremely hacky. Need typing for torch tensor types.
     attr = '__name__' if hasattr(x, '__name__') else '_name'
-    return 'Tensor' in getattr(x, attr)
+    ret = False
+    if hasattr(x, attr):
+        value = getattr(x, attr)
+        ret = ret | (value is not None and 'Tensor' in getattr(x, attr))
+    if hasattr(x, '__args__'):
+        for type_ in x.__args__:
+            ret = ret | _is_tensor_type(type_)
+    return ret
 
 
 def dataclass_size_repr(self):
@@ -107,9 +115,9 @@ def dataclass_size_repr(self):
     # TODO(j_luo) also print out names?
     # TODO(j_luo) should inheirt old __repr__ so that some fields with repr == False are taken care of.
     out = list()
-    for attr, field in self.__dataclass_fields__.items():
+    for field in fields(self):
+        attr = field.name
         anno = field.type
-        # IDEA(j_luo) need typing for torch tensor types.
         if anno is np.ndarray or _is_tensor_type(anno):
             shape = tuple(getattr(self, attr).shape)
             out.append(f'{attr}: {shape}')
@@ -122,19 +130,6 @@ def dataclass_size_repr(self):
 T = TypeVar('T')
 
 
-def dataclass_cuda(self: T) -> T:
-    """Move tensors to gpu if possible."""
-    named_tensor.patch_named_tensors()
-
-    for attr, field in self.__dataclass_fields__.items():
-        anno = field.type
-        if _is_tensor_type(anno):
-            tensor = getattr(self, attr)
-            names = tensor.names
-            setattr(self, attr, get_tensor(tensor).refine_names(*names))
-    return self
-
-
 def debug_stats(message: str, tensor: Tensor):
     logging.info(f'{message} nir:')
     logging.info(f'\tshape/device:\t{tensor.shape}/{tensor.device}')
@@ -142,3 +137,47 @@ def debug_stats(message: str, tensor: Tensor):
     if not tensor.dtype is torch.bool:
         logging.info('\tINF:\t' + str(torch.isinf(tensor).any().item()))
     logging.info(f'\tmax/min:\t{tensor.max().item()}/{tensor.min().item()}')
+
+
+def dataclass_cuda(self: T) -> T:
+    """Move tensors to gpu if possible. This is in-place."""
+    named_tensor.patch_named_tensors()
+    for field in fields(self):
+        attr = field.name
+        value = getattr(self, attr)
+        if torch.is_tensor(value):
+            # TODO(j_luo) use something from named_tensor.py?
+            names = value.names
+            setattr(self, attr, get_tensor(value).refine_names(*names))
+    return self
+
+
+def dataclass_numpy(self: T) -> T:
+    """Convert tensors to numpy arrays if possible. This is out-of-place."""
+    ret = deepcopy(self)
+    for attr, field in ret.__dataclass_fields__.items():
+        anno = field.type
+        if _is_tensor_type(anno):
+            tensor = getattr(ret, attr)
+            setattr(ret, attr, tensor.cpu().numpy())
+    return ret
+
+
+def check_explicit_arg(value):
+    if value is None:
+        raise ValueError('Must explicitly pass a non-None value.')
+
+
+def cached_property(func):
+    """A decorator for lazy properties."""
+    cached_name = f'_cached_{func.__name__}'
+
+    @property
+    @wraps(func)
+    def wrapped(self):
+        if not hasattr(self, cached_name):
+            ret = func(self)
+            setattr(self, cached_name, ret)
+        return getattr(self, cached_name)
+
+    return wrapped
