@@ -220,9 +220,11 @@ NameType = Union[Sequence[str], str]
 
 
 @patch(torch)
-def cat(tensors: Sequence[Tensor], dim: int = 0, out: Tensor = None, *, names: Optional[NameType] = None, new_name: Optional[str] = None):
+def cat(tensors: Sequence[Tensor], dim: int = None, out: Tensor = None, *, names: Optional[NameType] = None, new_name: Optional[str] = None):
     if names is not None:
-        # NOTE(j_luo) If both arguments are provided, we use the new interface for named tensors.
+        if dim is not None:
+            raise TypeError(f'You cannot specify both `new_name` and `dim`.')
+        # NOTE(j_luo) If `names` is provided, we use the new interface for named tensors.
         if isinstance(names, str):
             names = [names] * len(tensors)
         if len(names) != len(tensors):
@@ -238,7 +240,26 @@ def cat(tensors: Sequence[Tensor], dim: int = 0, out: Tensor = None, *, names: O
             raise ValueError(f'Not all remaining renames are matched.')
 
         new_names = tensors[0].names[:dim] + (new_name, ) + tensors[0].names[dim + 1:]
-        out = call_unpatched([tensor.rename(None) for tensor in tensors], dim=dim, out=out)
+        with NoName(*tensors):
+            out = call_unpatched([tensor for tensor in tensors], dim=dim, out=out)
+        return out.refine_names(*new_names)
+    else:
+        return call_unpatched(tensors, dim=dim, out=out)
+
+
+@patch(torch)
+def stack(tensors: Sequence[Tensor], dim: int = None, out: Tensor = None, *, new_name: Optional[str] = None):
+    if new_name is not None:
+        if dim is not None:
+            raise TypeError(f'You cannot specify both `new_name` and `dim`.')
+        tensor_names = [tensor.names for tensor in tensors]
+        if any(tensor_names[0] != tn for tn in tensor_names[1:]):
+            raise ValueError('Not all names are identical.')
+
+        tensors = [tensor.align_as(tensors[0]) for tensor in tensors]
+        with NoName(*tensors):
+            out = call_unpatched(tensors, dim=-1, out=out)
+        new_names = tensor_names[0] + (new_name, )
         return out.refine_names(*new_names)
     else:
         return call_unpatched(tensors, dim=dim, out=out)

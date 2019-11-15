@@ -103,6 +103,17 @@ def _is_tensor_type(x: Any) -> bool:
     return ret
 
 
+def _is_np_type(x: Any) -> bool:
+    # IDEA(j_luo) This is extremely hacky. Need typing for numpy array types.
+    ret = False
+    if x is np.ndarray:
+        return True
+    if hasattr(x, '__args__'):
+        for type_ in x.__args__:
+            ret = ret | _is_np_type(type_)
+    return ret
+
+
 def dataclass_size_repr(self):
     """ __repr__ for dataclasses so that bt can generate repr result for tensors or arrays with only shape information printed out."""
     # TODO(j_luo) also print out names?
@@ -111,7 +122,7 @@ def dataclass_size_repr(self):
     for field in fields(self):
         attr = field.name
         anno = field.type
-        if anno is np.ndarray or _is_tensor_type(anno):
+        if _is_np_type(anno) or _is_tensor_type(anno):
             shape = tuple(getattr(self, attr).shape)
             out.append(f'{attr}: {shape}')
         else:
