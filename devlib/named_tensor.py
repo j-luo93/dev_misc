@@ -112,16 +112,6 @@ unpatch_named_tensors = _patcher.unpatch_named_tensors
 call_unpatched = _patcher.call_unpatched
 
 
-@patch(torch.Tensor)
-def refine_names(self, *args, **kwargs):
-    ret = call_unpatched(self, *args, **kwargs)
-    _incref = ctypes.pythonapi.Py_IncRef
-    _incref.argtypes = [ctypes.py_object]
-    for _ in range(len(args)):
-        _incref(None)
-    return ret
-
-
 @patch(torch.Tensor, create=True)
 def hide_names(self):
     if self.has_names() and not hasattr(self, '_hidden_names'):
@@ -153,30 +143,54 @@ class NoName:
             tensor.reveal_names()
 
 
-_to_inherit: List[Tuple[_Patchable, List[str]]] = [
+_Configuration = List[Tuple[_Patchable, List[str]]]
+_to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu']),
     (torch, ['zeros_like']),
     (torch.Tensor, ['addcmul_', 'addcdiv_'])
 ]
+_to_inc_refcount: _Configuration = [
+    (torch.Tensor, ['refine_names', 'rename', 'rename_'])
+]
+_all_to_patch: Dict[str, _Configuration] = {
+    'inherit': _to_inherit,
+    'inc_refcount': _to_inc_refcount
+}
 
 
-def _gen_function(patchable: _Patchable, name: str):
+def _gen_function(patchable: _Patchable, name: str, action: str):
     old_func = getattr(patchable, name)
 
-    @wraps(old_func)
-    def wrapped(tensor: Tensor, *args, **kwargs):
-        with NoName(tensor, *args, **kwargs):
-            ret = call_unpatched(tensor, *args, caller_name=name, **kwargs)
-        return ret.refine_names(*tensor.names)
+    if action == 'inherit':
+
+        @wraps(old_func)
+        def wrapped(tensor: Tensor, *args, **kwargs):
+
+            with NoName(tensor, *args, **kwargs):
+                ret = call_unpatched(tensor, *args, caller_name=name, **kwargs)
+            return ret.refine_names(*tensor.names)
+
+    elif action == 'inc_refcount':
+
+        _incref = ctypes.pythonapi.Py_IncRef
+        _incref.argtypes = [ctypes.py_object]
+
+        @wraps(old_func)
+        def wrapped(*args, **kwargs):
+            ret = call_unpatched(*args, caller_name=name, **kwargs)
+            for _ in range(len(args) + len(kwargs)):
+                _incref(None)
+            return ret
 
     return wrapped
 
 
 # TODO(j_luo) This is side-effect.
-for patchable, names in _to_inherit:
-    for name in names:
-        patched = _gen_function(patchable, name)
-        patch(patchable)(patched)
+for action, config in _all_to_patch.items():
+    for patchable, names in config:
+        for name in names:
+            patched = _gen_function(patchable, name, action)
+            patch(patchable)(patched)
 
 
 @patch(torch.nn.Module)
