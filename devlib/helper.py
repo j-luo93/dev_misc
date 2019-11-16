@@ -1,3 +1,4 @@
+import warnings
 import os
 from copy import deepcopy
 from dataclasses import fields
@@ -173,5 +174,15 @@ def cached_property(func):
             ret = func(self)
             setattr(self, cached_name, ret)
         return getattr(self, cached_name)
+
+    return wrapped
+
+
+def deprecated(func):
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        warnings.warn(f'Function {func.__name__} deprecated', DeprecationWarning)
+        return func(*args, **kwargs)
 
     return wrapped

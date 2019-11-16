@@ -10,9 +10,9 @@ from typing import (Any, Callable, Dict, List, Optional, Sequence, Tuple, Type,
 
 import torch
 import torch.nn as nn
-from deprecated import deprecated
 
 from devlib import get_range
+from devlib import deprecated
 
 Module = nn.Module
 Tensor = torch.Tensor
@@ -220,10 +220,8 @@ NameType = Union[Sequence[str], str]
 
 
 @patch(torch)
-def cat(tensors: Sequence[Tensor], dim: int = None, out: Tensor = None, *, names: Optional[NameType] = None, new_name: Optional[str] = None):
+def cat(tensors: Sequence[Tensor], dim: int = 0, out: Tensor = None, *, names: Optional[NameType] = None, new_name: Optional[str] = None):
     if names is not None:
-        if dim is not None:
-            raise TypeError(f'You cannot specify both `new_name` and `dim`.')
         # NOTE(j_luo) If `names` is provided, we use the new interface for named tensors.
         if isinstance(names, str):
             names = [names] * len(tensors)
@@ -248,10 +246,8 @@ def cat(tensors: Sequence[Tensor], dim: int = None, out: Tensor = None, *, names
 
 
 @patch(torch)
-def stack(tensors: Sequence[Tensor], dim: int = None, out: Tensor = None, *, new_name: Optional[str] = None):
+def stack(tensors: Sequence[Tensor], dim: int = 0, out: Tensor = None, *, new_name: Optional[str] = None):
     if new_name is not None:
-        if dim is not None:
-            raise TypeError(f'You cannot specify both `new_name` and `dim`.')
         tensor_names = [tensor.names for tensor in tensors]
         if any(tensor_names[0] != tn for tn in tensor_names[1:]):
             raise ValueError('Not all names are identical.')
@@ -263,6 +259,56 @@ def stack(tensors: Sequence[Tensor], dim: int = None, out: Tensor = None, *, new
         return out.refine_names(*new_names)
     else:
         return call_unpatched(tensors, dim=dim, out=out)
+
+
+Dim = Union[str, int]
+
+
+class MustBeNamed(Exception):
+    pass
+
+
+@patch(torch.Tensor, create=True)
+def has_full_names(self):
+    return all(name is not None for name in self.names)
+
+
+def _check_full_names(tensor: Tensor):
+    if not tensor.has_full_names():
+        raise MustBeNamed('Must be fully named.')
+
+
+@patch(torch.Tensor)
+def gather(self, dim: Dim, index: torch.LongTensor, *args, **kwargs):
+    _check_full_names(self)
+    _check_full_names(index)
+
+    if isinstance(dim, int):
+        with NoName(self, index):
+            ret = call_unpatched(self, dim, index, *args, **kwargs)
+        new_names = index.names
+    elif isinstance(dim, str):
+        common_names = [name for name in self.names if name != dim]
+        index_unique_names = [name for name in index.names if name not in common_names]
+        unique_name = None
+        if len(index_unique_names) > 1:
+            raise RuntimeError(f'Can only have at most one unique name for index.')
+        elif len(index_unique_names) == 1:
+            unique_name = index_unique_names[0]
+            index = index.rename(**{unique_name: dim})
+        index = index.align_as(self)
+        dim_int = self.names.index(dim)
+        with NoName(self, index):
+            ret = call_unpatched(self, dim_int, index, *args, **kwargs)
+        if unique_name:
+            index = index.rename(**{dim: unique_name})
+        new_names = index.names
+        if len(index_unique_names) == 0:
+            ret = ret.squeeze(dim=dim_int)
+            new_names = new_names[:dim_int] + new_names[dim_int + 1:]
+    else:
+        raise TypeError(f'Unsupported type for dim {type(dim)}.')
+    return ret.refine_names(*new_names)
 
 
 class NamedModule:
@@ -288,15 +334,15 @@ class NamedModule:
 
 patch_cls(torch.nn, 'Linear', NamedModule)
 
+
+def get_named_range(size: int, name: str) -> Tensor:
+    return get_range(size, 1, 0).refine_names(name)
+
 # -------------------------------------------------------------- #
 #                      Old helper functions                      #
 # -------------------------------------------------------------- #
 
 # TODO(j_luo) Document name changes for the following helper functions.
-
-
-class MustBeNamed(Exception):
-    pass
 
 
 def _check_names(tensor: Tensor) -> bool:
@@ -306,7 +352,7 @@ def _check_names(tensor: Tensor) -> bool:
     return tensor.names
 
 
-@deprecated(reason='Old helper functions.')
+@deprecated
 def embed(mod: Module, tensor: Tensor, new_dim_name: str) -> Tensor:
     """Embed a tensor and adjust the names."""
     names = _check_names(tensor)
@@ -314,7 +360,7 @@ def embed(mod: Module, tensor: Tensor, new_dim_name: str) -> Tensor:
     return mod(tensor.rename(None)).refine_names(*new_names)
 
 
-@deprecated(reason='Old helper functions.')
+@deprecated
 def self_attend(mod: Module, tensor: Tensor, new_name: str) -> Tuple[Tensor, Tensor]:
     old_names = _check_names(tensor)
     new_names = old_names[:-1] + (new_name,)
@@ -328,7 +374,7 @@ def self_attend(mod: Module, tensor: Tensor, new_name: str) -> Tuple[Tensor, Ten
     return output, weight
 
 
-@deprecated(reason='Old helper functions.')
+@deprecated
 def adv_index(tensor: Tensor, name: str, index: Tensor) -> Tensor:
     # TODO(j_luo) Expand this function to handle more complicated cases.
     old_names = _check_names(tensor)
@@ -341,28 +387,23 @@ def adv_index(tensor: Tensor, name: str, index: Tensor) -> Tensor:
     return ret.refine_names(*new_names)
 
 
-@deprecated(reason='Old helper functions.')
-def gather(tensor: Tensor, index: Tensor) -> Tensor:
-    if tensor.ndim != 2:
-        raise NotImplementedError(f'tensor can only be a matrix, but got {tensor.ndim} dims.')
-    if index.ndim != 1:
-        raise NotImplementedError(f'index can only be a vector, but got {tensor.ndim} dims.')
+# @deprecated(reason='Old helper functions.')
+# def gather(tensor: Tensor, index: Tensor) -> Tensor:
+#     if tensor.ndim != 2:
+#         raise NotImplementedError(f'tensor can only be a matrix, but got {tensor.ndim} dims.')
+#     if index.ndim != 1:
+#         raise NotImplementedError(f'index can only be a vector, but got {tensor.ndim} dims.')
 
-    shared_name = index.names[0]
-    index = index.align_as(tensor)
-    dim = 1 if shared_name == tensor.names[0] else 0
-    ret = tensor.rename(None).gather(dim, index.rename(None)).view(-1).refine_names(shared_name)
-    return ret
+#     shared_name = index.names[0]
+#     index = index.align_as(tensor)
+#     dim = 1 if shared_name == tensor.names[0] else 0
+#     ret = tensor.rename(None).gather(dim, index.rename(None)).view(-1).refine_names(shared_name)
+#     return ret
 
 
-@deprecated(reason='Old helper functions.')
+@deprecated
 def expand_as(tensor: Tensor, other: Tensor) -> Tensor:
     _check_names(tensor)
     other_names = _check_names(other)
     tensor = tensor.align_as(other)
     return tensor.rename(None).expand_as(other.rename(None)).refine_names(*other_names)
-
-
-@deprecated(reason='Old helper functions.')
-def get_named_range(size: int, name: str) -> Tensor:
-    return get_range(size, 1, 0).refine_names(name)

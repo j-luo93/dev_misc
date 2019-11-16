@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules import MultiheadAttention
 
-from .named_tensor import (adv_index, embed, expand_as, gather,
-                           get_named_range, self_attend, patch_named_tensors, unpatch_named_tensors)
+from .named_tensor import (adv_index, embed, expand_as, get_named_range,
+                           self_attend, patch_named_tensors, unpatch_named_tensors)
 
 
 class TestNamedTensorBase(TestCase):
@@ -39,17 +39,17 @@ class TestNamedTensorOldHelperFunctions(TestNamedTensorBase):
         self.has_names(tensor, ('x', 'y', 'w'))
         self.has_shape(tensor, (32, 10, 3))
 
-    def test_gather(self):
-        tensor = torch.randn(32, 10, names=['batch', 'length'])
-        index1 = torch.randint(10, (32,)).refine_names('batch')
-        ret1 = gather(tensor, index1)
-        self.has_names(ret1, ('batch', ))
-        self.has_shape(ret1, (32, ))
+    # def test_gather(self):
+    #     tensor = torch.randn(32, 10, names=['batch', 'length'])
+    #     index1 = torch.randint(10, (32,)).refine_names('batch')
+    #     ret1 = gather(tensor, index1)
+    #     self.has_names(ret1, ('batch', ))
+    #     self.has_shape(ret1, (32, ))
 
-        index2 = torch.randint(32, (10,)).refine_names('length')
-        ret2 = gather(tensor, index2)
-        self.has_names(ret2, ('length', ))
-        self.has_shape(ret2, (10, ))
+    #     index2 = torch.randint(32, (10,)).refine_names('length')
+    #     ret2 = gather(tensor, index2)
+    #     self.has_names(ret2, ('length', ))
+    #     self.has_shape(ret2, (10, ))
 
     def test_expand_as(self):
         tensor = torch.randn(32, names=['batch'])
@@ -116,3 +116,29 @@ class TestNamedTensorPatch(TestNamedTensorBase):
         out = torch.stack([t1, t2], new_name='length')
         self.has_shape(out, (32, 10, 2))
         self.has_names(out, ('batch', 'dim', 'length'))
+
+    def test_gather(self):
+        t1 = torch.randn(32, 10, 20, names=['batch', 'length', 'class'])
+
+        t2 = torch.randint(20, size=(32, 10))
+        t2.rename_('batch', 'length')
+        out = t1.gather('class', t2)
+        self.has_shape(out, (32, 10))
+        self.has_names(out, ('batch', 'length'))
+
+        t2 = torch.randint(20, size=(32, 10, 5))
+        t2.rename_('batch', 'length', 'chosen_class')
+        out = t1.gather('class', t2)
+        self.has_shape(out, (32, 10, 5))
+        self.has_names(out, ('batch', 'length', 'chosen_class'))
+        out = t1.gather(-1, t2)
+        self.has_shape(out, (32, 10, 5))
+        self.has_names(out, ('batch', 'length', 'chosen_class'))
+
+    def test_gather_transpose(self):
+        t1 = torch.randn(32, 10, 20, names=['batch', 'length', 'class'])
+        t2 = torch.randint(20, size=(10, 32))
+        t2.rename_('length', 'batch')
+        out = t1.gather('class', t2)
+        self.has_shape(out, (32, 10))
+        self.has_names(out, ('batch', 'length'))
