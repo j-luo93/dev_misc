@@ -5,3 +5,11 @@ from .helper import (batch_class, cached_property, check_explicit_arg,
                      get_range, get_tensor, get_trainable_params, get_zeros,
                      pad_to_dense)
 from .initiate import initiate
+
+import numpy as np
+import torch
+
+NDA = np.ndarray
+LT = torch.LongTensor
+FT = torch.FloatTensor
+BT = torch.BoolTensor
