@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import wraps
 from types import SimpleNamespace
-from typing import Any, Dict, no_type_check_decorator
+from typing import Any, Callable, Dict, no_type_check_decorator
 
 from pytrie import SortedStringTrie
 
@@ -317,22 +317,6 @@ class _RepositoryView:
 
 
 g = _Repository().get_view()
-
-
-def not_supported_argument_value(name: str, value: Any):
-    """A decorator that will raise error if the argument has a certain value."""
-
-    def wrapper(func):
-
-        @wraps(func)
-        def wrapped(*args, **kwargs):
-            if g.name == value:
-                raise NotImplementedError(f'Argument "{name}" with value "{value}" not supported.')
-            return func(*args, **kwargs)
-
-        return func
-
-    return wrapper
 
 
 ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
