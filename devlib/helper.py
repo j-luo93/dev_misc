@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass, fields
 from functools import partial, update_wrapper, wraps
@@ -9,7 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import devlib.named_tensor as named_tensor
+# import devlib.named_tensor as named_tensor
 
 # IDEA(j_luo) Tensor generic type!
 Tensor = torch.Tensor
@@ -110,6 +111,17 @@ def _is_tensor_type(x: Any) -> bool:
     return ret
 
 
+def _is_np_type(x: Any) -> bool:
+    # IDEA(j_luo) This is extremely hacky. Need typing for numpy array types.
+    ret = False
+    if x is np.ndarray:
+        return True
+    if hasattr(x, '__args__'):
+        for type_ in x.__args__:
+            ret = ret | _is_np_type(type_)
+    return ret
+
+
 def dataclass_size_repr(self):
     """ __repr__ for dataclasses so that bt can generate repr result for tensors or arrays with only shape information printed out."""
     # TODO(j_luo) also print out names?
@@ -118,7 +130,7 @@ def dataclass_size_repr(self):
     for field in fields(self):
         attr = field.name
         anno = field.type
-        if anno is np.ndarray or _is_tensor_type(anno):
+        if _is_np_type(anno) or _is_tensor_type(anno):
             shape = tuple(getattr(self, attr).shape)
             out.append(f'{attr}: {shape}')
         else:
@@ -179,5 +191,15 @@ def cached_property(func):
             ret = func(self)
             setattr(self, cached_name, ret)
         return getattr(self, cached_name)
+
+    return wrapped
+
+
+def deprecated(func):
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        warnings.warn(f'Function {func.__name__} deprecated', DeprecationWarning)
+        return func(*args, **kwargs)
 
     return wrapped
