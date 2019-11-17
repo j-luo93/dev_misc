@@ -85,7 +85,13 @@ def set_argument(name, value, *, _force=False):
 
 def test_with_arguments(*, _force=False, **kwargs):
     for name, value in kwargs.items():
-        add_argument(name, dtype=type(value))
+        if isinstance(value, (list, tuple)):
+            dtype = type(value[0])
+            nargs = len(value)
+        else:
+            dtype = type(value)
+            nargs = 1
+        add_argument(name, dtype=dtype, nargs=nargs)
         set_argument(name, value, _force=_force)
 
 
