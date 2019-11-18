@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
+import torch.nn as nn
+
+from dev_misc.utils import deprecated
 
 from .metrics import Metrics
 from .tracker.tracker import Tracker
@@ -17,6 +20,14 @@ def get_trainable_params(mod: torch.nn.Module, named: bool = True):
         for param in mod.parameters():
             if param.requires_grad:
                 yield param
+
+
+def freeze(mod: nn.Module):
+    """Freeze all parameters within a module."""
+    for p in mod.parameters():
+        p.requires_grad = False
+    for m in mod.children():
+        freeze(m)
 
 
 def get_grad_norm(mod: torch.nn.Module) -> float:
@@ -35,6 +46,7 @@ def set_random_seeds(seed: int):
     torch.manual_seed(seed)
 
 
+@deprecated
 class Trainer(ABC):
     """A base Trainer class that defines the basic workflow of a trainer."""
 

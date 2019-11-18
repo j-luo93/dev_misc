@@ -75,25 +75,6 @@ def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.B
     return mask
 
 
-def freeze(mod: nn.Module):
-    """Freeze all parameters within a module."""
-    for p in mod.parameters():
-        p.requires_grad = False
-    for m in mod.children():
-        freeze(m)
-
-
-def get_trainable_params(mod: nn.Module, named: bool = True):
-    if named:
-        for name, param in mod.named_parameters():
-            if param.requires_grad:
-                yield name, param
-    else:
-        for param in mod.parameters():
-            if param.requires_grad:
-                yield param
-
-
 def _is_tensor_type(x: Any) -> bool:
     # IDEA(j_luo) This is extremely hacky. Need typing for torch tensor types.
     attr = '__name__' if hasattr(x, '__name__') else '_name'
@@ -170,36 +151,6 @@ class BaseBatch:
     __repr__ = dataclass_size_repr
     cuda = dataclass_cuda
     numpy = dataclass_numpy
-
-
-def check_explicit_arg(value):
-    if value is None:
-        raise ValueError('Must explicitly pass a non-None value.')
-
-
-def cached_property(func):
-    """A decorator for lazy properties."""
-    cached_name = f'_cached_{func.__name__}'
-
-    @property
-    @wraps(func)
-    def wrapped(self):
-        if not hasattr(self, cached_name):
-            ret = func(self)
-            setattr(self, cached_name, ret)
-        return getattr(self, cached_name)
-
-    return wrapped
-
-
-def deprecated(func):
-
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        warnings.warn(f'Function {func.__name__} deprecated', DeprecationWarning)
-        return func(*args, **kwargs)
-
-    return wrapped
 
 
 def debug_stats(message: str, tensor: Tensor):

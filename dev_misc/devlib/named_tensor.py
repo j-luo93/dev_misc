@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 
 import dev_misc.devlib.helper as helper
+from dev_misc.utils import deprecated
 
 Module = nn.Module
 Tensor = torch.Tensor
@@ -365,7 +366,7 @@ def _check_names(tensor: Tensor) -> bool:
     return tensor.names
 
 
-@helper.deprecated
+@deprecated
 def embed(mod: Module, tensor: Tensor, new_dim_name: str) -> Tensor:
     """Embed a tensor and adjust the names."""
     names = _check_names(tensor)
@@ -373,7 +374,7 @@ def embed(mod: Module, tensor: Tensor, new_dim_name: str) -> Tensor:
     return mod(tensor.rename(None)).refine_names(*new_names)
 
 
-@helper.deprecated
+@deprecated
 def self_attend(mod: Module, tensor: Tensor, new_name: str) -> Tuple[Tensor, Tensor]:
     old_names = _check_names(tensor)
     new_names = old_names[:-1] + (new_name,)
@@ -387,7 +388,7 @@ def self_attend(mod: Module, tensor: Tensor, new_name: str) -> Tuple[Tensor, Ten
     return output, weight
 
 
-@helper.deprecated
+@deprecated
 def adv_index(tensor: Tensor, name: str, index: Tensor) -> Tensor:
     # TODO(j_luo) Expand this function to handle more complicated cases.
     old_names = _check_names(tensor)
@@ -400,21 +401,7 @@ def adv_index(tensor: Tensor, name: str, index: Tensor) -> Tensor:
     return ret.refine_names(*new_names)
 
 
-# @deprecated(reason='Old helper functions.')
-# def gather(tensor: Tensor, index: Tensor) -> Tensor:
-#     if tensor.ndim != 2:
-#         raise NotImplementedError(f'tensor can only be a matrix, but got {tensor.ndim} dims.')
-#     if index.ndim != 1:
-#         raise NotImplementedError(f'index can only be a vector, but got {tensor.ndim} dims.')
-
-#     shared_name = index.names[0]
-#     index = index.align_as(tensor)
-#     dim = 1 if shared_name == tensor.names[0] else 0
-#     ret = tensor.rename(None).gather(dim, index.rename(None)).view(-1).refine_names(shared_name)
-#     return ret
-
-
-@helper.deprecated
+@deprecated
 def expand_as(tensor: Tensor, other: Tensor) -> Tensor:
     _check_names(tensor)
     other_names = _check_names(other)

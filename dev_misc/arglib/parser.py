@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, no_type_check_decorator
 
 from pytrie import SortedStringTrie
 
+from dev_misc.utils import deprecated
+
 from .argument import Argument
 
 
@@ -322,8 +324,7 @@ g = _Repository().get_view()
 ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
-# IDEA(j_luo) Check out this https://docs.python.org/3/library/typing.html#typing.no_type_check
-# FIXME(j_luo) This would break down if annotations is imported from __future__.
+@deprecated
 def init_g_attr(cls=None, *, default='none'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.
     But positional-only marker "/" is removed since it is not supported in Python 3.7 yet.
