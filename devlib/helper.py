@@ -94,10 +94,6 @@ def get_trainable_params(mod: nn.Module, named: bool = True):
                 yield param
 
 
-# NOTE(j_luo) Batch dataclasses will inherit the customized __repr__.
-batch_class = update_wrapper(partial(dataclass, repr=False), dataclass)
-
-
 def _is_tensor_type(x: Any) -> bool:
     # IDEA(j_luo) This is extremely hacky. Need typing for torch tensor types.
     attr = '__name__' if hasattr(x, '__name__') else '_name'
@@ -142,18 +138,8 @@ def dataclass_size_repr(self):
 T = TypeVar('T')
 
 
-def debug_stats(message: str, tensor: Tensor):
-    logging.info(f'{message} nir:')
-    logging.info(f'\tshape/device:\t{tensor.shape}/{tensor.device}')
-    logging.info('\tNAN:\t' + str(torch.isnan(tensor).any().item()))
-    if not tensor.dtype is torch.bool:
-        logging.info('\tINF:\t' + str(torch.isinf(tensor).any().item()))
-    logging.info(f'\tmax/min:\t{tensor.max().item()}/{tensor.min().item()}')
-
-
 def dataclass_cuda(self: T) -> T:
     """Move tensors to gpu if possible. This is in-place."""
-    named_tensor.patch_named_tensors()
     for field in fields(self):
         attr = field.name
         value = getattr(self, attr)
@@ -173,6 +159,17 @@ def dataclass_numpy(self: T) -> T:
             tensor = getattr(ret, attr)
             setattr(ret, attr, tensor.cpu().numpy())
     return ret
+
+
+# NOTE(j_luo) Batch dataclasses will inherit the customized __repr__.
+batch_class = update_wrapper(partial(dataclass, repr=False), dataclass)
+
+
+@batch_class
+class BaseBatch:
+    __repr__ = dataclass_size_repr
+    cuda = dataclass_cuda
+    numpy = dataclass_numpy
 
 
 def check_explicit_arg(value):
@@ -203,3 +200,12 @@ def deprecated(func):
         return func(*args, **kwargs)
 
     return wrapped
+
+
+def debug_stats(message: str, tensor: Tensor):
+    logging.info(f'{message} nir:')
+    logging.info(f'\tshape/device:\t{tensor.shape}/{tensor.device}')
+    logging.info('\tNAN:\t' + str(torch.isnan(tensor).any().item()))
+    if not tensor.dtype is torch.bool:
+        logging.info('\tINF:\t' + str(torch.isinf(tensor).any().item()))
+    logging.info(f'\tmax/min:\t{tensor.max().item()}/{tensor.min().item()}')
