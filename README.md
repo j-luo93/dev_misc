@@ -9,3 +9,6 @@ Arguments should be declared where they belong. For instance, arguments related 
 
 # devlib
 A library built upon arglib and trainlib which helps develop ml models.
+
+# trainlib
+Just a collection of useful functions and classes to deal with training.
