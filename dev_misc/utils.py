@@ -1,3 +1,4 @@
+import inspect
 import warnings
 from functools import wraps
 
@@ -22,11 +23,18 @@ def cached_property(func):
     return wrapped
 
 
-def deprecated(func):
+def deprecated(func_or_cls):
 
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        warnings.warn(f'Function {func.__name__} deprecated', DeprecationWarning)
-        return func(*args, **kwargs)
+    if inspect.isclass(func_or_cls):
+        cls = func_or_cls
+        warnings.warn(f'Class {cls.__name__} deprecated.', DeprecationWarning)
+        return cls
+    else:
+        func = func_or_cls
 
-    return wrapped
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            warnings.warn(f'Function {func.__name__} deprecated.', DeprecationWarning)
+            return func(*args, **kwargs)
+
+        return wrapped
