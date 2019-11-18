@@ -6,9 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from arglib import (Registry, add_argument, add_registry, g, get_configs,
-                    parse_args, set_argument)
-from trainlib import create_logger
+from dev_misc.arglib import (Registry, add_argument, add_registry, g,
+                             get_configs, parse_args, set_argument)
+from dev_misc.trainlib import create_logger
 
 
 def _is_in_git_repo() -> bool:

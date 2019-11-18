@@ -11,7 +11,7 @@ from typing import (Any, Callable, Dict, List, Optional, Sequence, Tuple, Type,
 import torch
 import torch.nn as nn
 
-import devlib.helper as helper
+import dev_misc.devlib.helper as helper
 
 Module = nn.Module
 Tensor = torch.Tensor

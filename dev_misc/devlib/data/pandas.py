@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from devlib.helper import get_tensor, pad_to_dense
+from dev_misc.devlib.helper import get_tensor, pad_to_dense
 
 
 class PandasDataset(Dataset):
