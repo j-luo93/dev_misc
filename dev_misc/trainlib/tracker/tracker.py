@@ -12,8 +12,8 @@ import random
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence
 
-from .trackable import (BaseTrackable, MaxTrackable, TrackableFactory,
-                        TrackableUpdater)
+from .trackable import (BaseTrackable, MaxTrackable, MinTrackable,
+                        TrackableFactory, TrackableUpdater)
 
 
 @dataclass
@@ -43,6 +43,9 @@ class Tracker:
 
     def add_max_trackable(self, name: str) -> MaxTrackable:
         return self.add_trackable(name, agg_func='max')
+
+    def add_min_trackable(self, name: str) -> MinTrackable:
+        return self.add_trackable(name, agg_func='min')
 
     def ready(self):
 

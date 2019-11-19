@@ -20,6 +20,7 @@ class BaseTrackable(ABC):
         if parent is not None:
             # NOTE(j_luo) Every child here would be reset after the parent is updated.
             parent.children.append(self)
+        self.reset()
 
     @property
     def name(self):
@@ -32,7 +33,7 @@ class BaseTrackable(ABC):
 
     @abstractmethod
     def reset(self):
-        """Reset this object."""
+        """Reset this object. Note that this is called inside __init__."""
 
     @abstractmethod
     def update(self) -> bool:
@@ -48,10 +49,9 @@ class CountTrackable(BaseTrackable):
     _manager = enlighten.get_manager()
 
     def __init__(self, name: str, total: int, *, parent: BaseTrackable = None):
-        super().__init__(name, parent=parent)
-
         self._total = total
         self._pbar = self._manager.counter(desc=name, total=total)
+        super().__init__(name, parent=parent)
 
     @classmethod
     def reset_all(cls):
@@ -61,12 +61,13 @@ class CountTrackable(BaseTrackable):
     def total(self):
         return self._total
 
-    def update(self):
+    def update(self) -> bool:
         self._pbar.update()
         if self._total is not None and self._pbar.count > self._total:
             raise PBarOutOfBound(f'Progress bar ran out of bound.')
         for trackable in self.children:
             trackable.reset()
+        return True
 
     def reset(self):
         self._pbar.start = time.time()
@@ -80,22 +81,30 @@ class CountTrackable(BaseTrackable):
 
 class MaxTrackable(BaseTrackable):
 
-    def __init__(self, name: str, *, parent: BaseTrackable = None):
-        super().__init__(name, parent=parent)
-        self._value = -float('inf')
-
     @property
     def value(self):
         return self._value
 
+    def _to_update(self, value: float) -> bool:
+        return value > self._value
+
     def update(self, value: float) -> bool:
-        to_update = value > self._value
+        to_update = self._to_update(value)
         if to_update:
             self._value = value
         return to_update
 
     def reset(self):
         self._value = -float('inf')
+
+
+class MinTrackable(MaxTrackable):
+
+    def _to_update(self, value: float) -> bool:
+        return value < self._value
+
+    def reset(self):
+        self._value = float('inf')
 
 
 def reset_all():
@@ -117,6 +126,8 @@ class TrackableFactory:
             obj = CountTrackable(name, total, parent=parent)
         elif agg_func == 'max':
             obj = MaxTrackable(name, parent=parent)
+        elif agg_func == 'min':
+            obj = MinTrackable(name, parent=parent)
         else:
             raise ValueError(f'Unrecognized aggregate function {agg_func}.')
 
