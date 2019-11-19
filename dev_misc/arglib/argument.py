@@ -2,7 +2,7 @@ import inspect
 from pathlib import Path
 from typing import Any, List
 
-ALLOWED_TYPES = [str, float, int, bool, 'path']
+ALLOWED_TYPES = [str, float, int, bool, 'path', Path]
 
 
 class DtypeNotAllowed(Exception):
@@ -86,12 +86,21 @@ class Argument:
             if self.nargs != '+' and new_value_nargs != self.nargs:
                 raise MismatchedNArgs(f'self.nargs == {self.nargs}, but the new value is {new_value}.')
 
+            def lazy_dtype(new_value):
+                """
+                Only apply conversion if needed. This might help border cases where converting a subclass object to the parent class
+                has different effects from keeping the subclass object. Or in cases where mocks are used.
+                """
+                if not isinstance(new_value, self.dtype):
+                    return self.dtype(new_value)
+                return new_value
+
             if new_value_nargs == 1:
-                self._value = self.dtype(new_value)
+                self._value = lazy_dtype(new_value)
                 if self.nargs == '+':
                     self._value = (self._value, )
             else:
-                self._value = tuple((self.dtype(v) for v in new_value))
+                self._value = tuple((lazy_dtype(v) for v in new_value))
 
             # Check if the new value is in the set of choices.
             if self.choices is not None and self._value is not None:

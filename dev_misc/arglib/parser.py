@@ -87,11 +87,12 @@ def set_argument(name, value, *, _force=False):
 
 def test_with_arguments(*, _force=False, **kwargs):
     for name, value in kwargs.items():
+        # NOTE(j_luo) Use `__class__` instead of `type` since it gives us the capability of disguising the class of the value. This might come in handy in mocking.
         if isinstance(value, (list, tuple)):
-            dtype = type(value[0])
+            dtype = value[0].__class__
             nargs = len(value)
         else:
-            dtype = type(value)
+            dtype = value.__class__
             nargs = 1
         add_argument(name, dtype=dtype, nargs=nargs)
         set_argument(name, value, _force=_force)
