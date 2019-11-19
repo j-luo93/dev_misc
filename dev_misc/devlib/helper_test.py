@@ -4,7 +4,7 @@ from unittest import TestCase
 import numpy as np
 import torch
 
-from .helper import dataclass_size_repr, get_range, get_tensor
+from .helper import dataclass_size_repr, get_range, get_tensor, get_array
 
 
 def _to_list(tensor):
@@ -38,3 +38,19 @@ class TestHelper(TestCase):
         test = Test(1, torch.randn(32, 10), np.zeros([2, 10]))
         ans = 'Test(x=1, y: (32, 10), z: (2, 10))'
         self.assertEqual(repr(test), ans)
+
+    def test_get_array(self):
+
+        class Test:
+            def __init__(self):
+                self.value = 'ab'
+
+            def __getitem__(self, idx):
+                return self.value[idx]
+
+            def __len__(self):
+                return len(self.data)
+
+        a = [Test(), Test()]
+        a = get_array(a)
+        self.assertTupleEqual(a.shape, (2, ))

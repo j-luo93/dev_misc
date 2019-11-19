@@ -4,7 +4,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, fields
 from functools import partial, update_wrapper, wraps
-from typing import Any, List, TypeVar, Union
+from typing import Any, List, Sequence, TypeVar, Union
 
 import numpy as np
 import torch
@@ -64,6 +64,16 @@ def pad_to_dense(a: List[np.ndarray], dtype=np.float32) -> np.ndarray:
     return ret
 
 
+def get_array(array_like: Sequence[Any]) -> np.ndarray:
+    """
+    Create an array of arbitrary objects without converting them into multidimensional numpy arrays.
+    See https://stackoverflow.com/questions/38774922/prevent-numpy-from-creating-a-multidimensional-array
+    """
+    arr = np.empty(len(array_like), dtype=object)
+    arr[:] = array_like
+    return arr
+
+
 def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.BoolTensor:
     """Get a mask that is True if the index is less than the corresponding length."""
     if lengths.ndim != 1:
@@ -76,7 +86,7 @@ def get_length_mask(lengths: Tensor, max_len: int, cpu: bool = False) -> torch.B
 
 
 def _is_tensor_type(x: Any) -> bool:
-    # IDEA(j_luo) This is extremely hacky. Need typing for torch tensor types.
+    # FIXME(j_luo) This is extremely hacky. Need typing for torch tensor types. This would break down if future annotations are used.
     attr = '__name__' if hasattr(x, '__name__') else '_name'
     ret = False
     if hasattr(x, attr):
@@ -89,7 +99,7 @@ def _is_tensor_type(x: Any) -> bool:
 
 
 def _is_np_type(x: Any) -> bool:
-    # IDEA(j_luo) This is extremely hacky. Need typing for numpy array types.
+    # FIXME(j_luo) This is extremely hacky. Need typing for numpy array types.
     ret = False
     if x is np.ndarray:
         return True
