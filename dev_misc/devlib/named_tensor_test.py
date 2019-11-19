@@ -131,9 +131,10 @@ class TestNamedTensorPatch(TestNamedTensorBase):
         out = t1.gather('class', t2)
         self.has_shape(out, (32, 10, 5))
         self.has_names(out, ('batch', 'length', 'chosen_class'))
+        t1.rename_(None)
+        t2.rename_(None)
         out = t1.gather(-1, t2)
         self.has_shape(out, (32, 10, 5))
-        self.has_names(out, ('batch', 'length', 'chosen_class'))
 
     def test_gather_transpose(self):
         t1 = torch.randn(32, 10, 20, names=['batch', 'length', 'class'])

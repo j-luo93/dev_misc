@@ -23,18 +23,24 @@ def cached_property(func):
     return wrapped
 
 
+def _warn_once(message: str, exception_cls: Warning):
+    with warnings.catch_warnings():
+        warnings.simplefilter("once")
+        warnings.warn(message, exception_cls)
+
+
 def deprecated(func_or_cls):
 
     if inspect.isclass(func_or_cls):
         cls = func_or_cls
-        warnings.warn(f'Class {cls.__name__} deprecated.', DeprecationWarning)
+        _warn_once(f'Class {cls.__name__} deprecated.', DeprecationWarning)
         return cls
     else:
         func = func_or_cls
 
         @wraps(func)
         def wrapped(*args, **kwargs):
-            warnings.warn(f'Function {func.__name__} deprecated.', DeprecationWarning)
+            _warn_once(f'Function {func.__name__} deprecated.', DeprecationWarning)
             return func(*args, **kwargs)
 
         return wrapped

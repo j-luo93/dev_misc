@@ -1,3 +1,4 @@
+import os
 import random
 from abc import ABC, abstractmethod
 
@@ -44,6 +45,10 @@ def set_random_seeds(seed: int):
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
+
+
+def has_gpus() -> bool:
+    return bool(os.environ.get('CUDA_VISIBLE_DEVICES', False))
 
 
 @deprecated

@@ -294,14 +294,14 @@ def _check_full_names(tensor: Tensor):
 
 @patch(torch.Tensor)
 def gather(self, dim: Dim, index: torch.LongTensor, *args, **kwargs):
-    _check_full_names(self)
-    _check_full_names(index)
-
     if isinstance(dim, int):
         with NoName(self, index):
             ret = call_unpatched(self, dim, index, *args, **kwargs)
         new_names = index.names
     elif isinstance(dim, str):
+        _check_full_names(self)
+        _check_full_names(index)
+
         common_names = [name for name in self.names if name != dim]
         index_unique_names = [name for name in index.names if name not in common_names]
         unique_name = None
