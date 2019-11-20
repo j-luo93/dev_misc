@@ -4,7 +4,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, fields
 from functools import partial, update_wrapper, wraps
-from typing import Any, List, Sequence, TypeVar, Union
+from typing import Any, List, Sequence, Type, TypeVar, Union
 
 import numpy as np
 import torch
@@ -152,8 +152,8 @@ def dataclass_numpy(self: T) -> T:
     return ret
 
 
-# NOTE(j_luo) Batch dataclasses will inherit the customized __repr__.
-batch_class = update_wrapper(partial(dataclass, repr=False), dataclass)
+# NOTE(j_luo) Batch dataclasses will inherit the customized __repr__. Not sure if he type hint is correct, but it helps vscode find the function signature.
+batch_class: Type[dataclass] = update_wrapper(partial(dataclass, repr=False), dataclass)
 
 
 @batch_class
