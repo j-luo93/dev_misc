@@ -2,7 +2,12 @@ import inspect
 from pathlib import Path
 from typing import Any, List
 
-ALLOWED_TYPES = [str, float, int, bool, 'path', Path]
+
+def _is_allowed(dtype) -> bool:
+    if dtype == 'path':
+        return True
+    else:
+        return any(issubclass(dtype, t) for t in [str, float, int, bool, Path])
 
 
 class DtypeNotAllowed(Exception):
@@ -37,8 +42,8 @@ class Argument:
             nargs: Any = 1,
             msg: str = '',
             choices: List[Any] = None):
-        if dtype not in ALLOWED_TYPES:
-            raise DtypeNotAllowed(f'The value for "dtype" must be from {ALLOWED_TYPES}, but is actually {dtype}.')
+        if not _is_allowed(dtype):
+            raise DtypeNotAllowed(f'The value for dtype "{dtype}" is not allowed.')
         if not isinstance(nargs, int) and nargs != '+':
             raise NArgsNotAllowed(f'nargs can only be an int or "+", but got {nargs}.')
         if dtype == bool and nargs != 1:
