@@ -46,3 +46,18 @@ class TestDecorator(TestCase):
         set_argument('option', 1, _force=True)
         test()
         self.assertListEqual(lst, [1, 2])
+
+    def test_gt(self):
+        test_with_arguments(option=2, _force=True)
+
+        lst = [1]
+        @try_when('option', 1, comp='gt')
+        def test():
+            lst.append(2)
+
+        test()
+        self.assertListEqual(lst, [1, 2])
+
+        set_argument('option', 1, _force=True)
+        test()
+        self.assertListEqual(lst, [1, 2])

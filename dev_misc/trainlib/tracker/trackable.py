@@ -112,6 +112,7 @@ def reset_all():
 
 
 class TrackableFactory:
+    # IDEA(j_luo) Rewrite this so that it serves as a container. Instead of using __new__, we can use __init__, but some method like get_trackable(*args, **kwargs). This can structure the `trackables` attribute in Tracker as well.
 
     _instances: Dict[str, BaseTrackable] = dict()
 
