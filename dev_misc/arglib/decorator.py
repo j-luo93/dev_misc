@@ -5,9 +5,10 @@ from typing import Any, Callable
 from .parser import g
 
 
-def _g_decorator_helper(name: str, value: Any = None, *, when: str = 'call', callback: Callable = None, comp: str = 'eq'):
+def _g_decorator_helper(name: str, value: Any = None, *, when: str = 'call', callback: Callable = None, comp: str = 'eq', else_return='original'):
     """The backend call for many g-based decorators."""
     assert when in ['pre', 'post', 'call']
+    assert else_return in ['original', 'none']
     if when in ['pre', 'post']:
         assert callback is not None
 
@@ -22,7 +23,17 @@ def _g_decorator_helper(name: str, value: Any = None, *, when: str = 'call', cal
 
         @wraps(func)
         def wrapped(*args, **kwargs):
-            ret = None
+            # Set default return.
+            if else_return == 'original':
+                if kwargs:
+                    raise NotImplementedError(f'Cannot deal with nonempty kwargs right now.')
+                if len(args) == 1:
+                    ret = args[0]
+                else:
+                    ret = args
+            else:
+                ret = None
+
             g_value = getattr(g, name)
             if value is None:
                 met = bool(g_value)

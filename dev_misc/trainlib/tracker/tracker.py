@@ -10,14 +10,18 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence
+from functools import partial, update_wrapper
+from typing import Any, Dict, List, Sequence, Type
 
 from .trackable import (BaseTrackable, MaxTrackable, MinTrackable,
                         TrackableFactory, TrackableUpdater)
 
+task_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
 
-@dataclass
+
+@task_class
 class Task:
+
     def __hash__(self):
         return id(self)
 
