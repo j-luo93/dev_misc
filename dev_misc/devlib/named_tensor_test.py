@@ -5,7 +5,8 @@ import torch.nn as nn
 from torch.nn.modules import MultiheadAttention
 
 from .named_tensor import (adv_index, embed, expand_as, get_named_range,
-                           self_attend, patch_named_tensors, unpatch_named_tensors)
+                           patch_named_tensors, self_attend,
+                           unpatch_named_tensors)
 
 
 class TestNamedTensorBase(TestCase):
@@ -143,3 +144,11 @@ class TestNamedTensorPatch(TestNamedTensorBase):
         out = t1.gather('class', t2)
         self.has_shape(out, (32, 10))
         self.has_names(out, ('batch', 'length'))
+
+    def test_embedding(self):
+        weight = torch.randn(100, 10, names=['vocab', 'dim'])
+        index = torch.randint(10, size=[8, 3])
+        index.rename_('batch', 'length')
+        out = torch.embedding(weight, index)
+        self.has_shape(out, (8, 3, 10))
+        self.has_names(out, ('batch', 'length', 'dim'))

@@ -1,3 +1,4 @@
+from dev_misc import FT, LT
 import ctypes
 import inspect
 import warnings
@@ -17,6 +18,8 @@ from dev_misc.utils import deprecated
 Module = nn.Module
 Tensor = torch.Tensor
 
+
+# IDEA(j_luo) We can use an object that marks the size and the name of a dimension. That way, the name and the actual size are bound.
 
 @dataclass
 class Patch:
@@ -146,11 +149,11 @@ class NoName:
 _Configuration = List[Tuple[_Patchable, List[str]]]
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu']),
-    (torch, ['zeros_like']),
+    (torch, ['zeros_like', 'full_like', 'layer_norm']),
     (torch.Tensor, ['addcmul_', 'addcdiv_'])
 ]
 _to_inc_refcount: _Configuration = [
-    (torch.Tensor, ['refine_names', 'rename', 'rename_'])
+    (torch.Tensor, ['refine_names', 'rename', 'rename_', 'align_to', 'align_as'])
 ]
 _all_to_patch: Dict[str, _Configuration] = {
     'inherit': _to_inherit,
@@ -178,7 +181,7 @@ def _gen_function(patchable: _Patchable, name: str, action: str):
         @wraps(old_func)
         def wrapped(*args, **kwargs):
             ret = call_unpatched(*args, caller_name=name, **kwargs)
-            for _ in range(len(args) + len(kwargs)):
+            for _ in range(2 * (len(args) + len(kwargs))):
                 _incref(None)
             return ret
 
@@ -325,6 +328,47 @@ def gather(self, dim: Dim, index: torch.LongTensor, *args, **kwargs):
     return ret.refine_names(*new_names)
 
 
+@patch(torch)
+def embedding(weight: FT, index: LT, *args, **kwargs):
+    with NoName(weight, index):
+        out = call_unpatched(weight, index, *args, **kwargs)
+    new_names = index.names + weight.names[-1:]
+    return out.rename_(*new_names)
+
+
+@patch(torch.Tensor)
+def expand_as(self: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    if self.has_names() and other.has_names():
+        obj = self.align_as(other)
+        with NoName(obj, other):
+            out = call_unpatched(obj, other)
+        out.rename_(*obj.names)
+        return out
+    else:
+        with NoName(self, other):
+            return call_unpatched(self, other)
+
+
+@patch(torch.nn.functional)
+def cross_entropy(tensor: FT, target: LT, weight: Optional[FT] = None, **kwargs):
+    with NoName(tensor, target, weight):
+        out = call_unpatched(tensor, target, weight, **kwargs)
+    return out
+
+
+@patch(torch)
+def topk(tensor: FT, k: int, dim: Dim = -1, *args, **kwargs):
+    if isinstance(dim, int):
+        return call_unpatched(tensor, k, dim=dim, *args, **kwargs)
+    else:
+        dim_int = tensor.names.index(dim)
+        with NoName(tensor):
+            values, indices = call_unpatched(tensor, k, dim=dim_int, *args, **kwargs)
+        values.rename_(*tensor.names)
+        indices.rename_(*tensor.names)
+        return values, indices
+
+
 class NamedModule:
 
     def _refine_names_helper(self, attr_path: List[str], names: Sequence[str]):
@@ -346,7 +390,10 @@ class NamedModule:
         self._refine_names_helper(dot_separated, names)
 
 
+patch_cls(torch.nn, 'Module', NamedModule)
 patch_cls(torch.nn, 'Linear', NamedModule)
+patch_cls(torch.nn, 'Embedding', NamedModule)
+patch_cls(torch.nn, 'LayerNorm', NamedModule)
 
 
 def get_named_range(size: int, name: str) -> Tensor:

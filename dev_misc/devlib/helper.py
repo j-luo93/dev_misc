@@ -37,8 +37,8 @@ def get_tensor(x: Tensorable, cpu=False) -> Tensor:
         tensor = tensor.cuda()
     else:
         tensor = tensor.cpu()
-    # NOTE(j_luo) Convert everything back to unnamed tensor so that we don't have to deal with unsupported ops on named tensors later.
-    tensor.rename_(None)  # TODO(j_luo) use something from named_tensor.py?
+    # # NOTE(j_luo) Convert everything back to unnamed tensor so that we don't have to deal with unsupported ops on named tensors later.
+    # tensor.rename_(None)  # TODO(j_luo) use something from named_tensor.py?
     return tensor
 
 
