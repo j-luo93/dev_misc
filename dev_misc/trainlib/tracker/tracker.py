@@ -41,7 +41,8 @@ class Tracker:
         return self.trackables[name].value >= self.trackables[name].total
 
     def add_trackable(self, name: str, *, total: int = None, agg_func: str = 'count') -> BaseTrackable:
-        trackable = TrackableFactory(name, total=total, agg_func=agg_func)
+        factory = TrackableFactory()
+        trackable = factory.register_trackable(name, total=total, agg_func=agg_func)
         self.trackables[name] = trackable
         return trackable
 

@@ -40,7 +40,8 @@ class BaseTrackable(ABC):
         """Update this object and return whether the value is updated."""
 
     def add_trackable(self, name: str, *, total: int = None) -> BaseTrackable:
-        trackable = TrackableFactory(name, total=total, parent=self)
+        factory = TrackableFactory()
+        trackable = factory.register_trackable(name, total=total, parent=self)
         return trackable
 
 
@@ -116,11 +117,11 @@ class TrackableFactory:
 
     _instances: Dict[str, BaseTrackable] = dict()
 
-    def __new__(cls, name: str, *, total: int = None, parent: BaseTrackable = None, agg_func: str = 'count'):
+    def register_trackable(self, name: str, *, total: int = None, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
         """
         If `parent` is set, then this trackable will be reset whenever the parent is updated.
         """
-        if name in cls._instances:
+        if name in self._instances:
             raise ValueError(f'A trackable named "{name}" already exists.')
 
         if agg_func == 'count':
