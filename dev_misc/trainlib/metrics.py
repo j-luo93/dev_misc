@@ -28,11 +28,13 @@ def plain(value):
 
 class Metric:
 
-    def __init__(self, name, value, weight, report_mean=True):
+    def __init__(self, name, value, weight=None, report_mean=True):
         self.name = name
         self._v = value
         self._w = weight
         self._report_mean = report_mean
+        if report_mean and weight is None:
+            raise ValueError(f'Must provide weight for reporting mean.')
 
     def __hash__(self):
         return hash(self.name)
@@ -53,7 +55,10 @@ class Metric:
         if isinstance(other, Metric):
             assert self == other, 'Cannot add two different metrics.'
             assert self.report_mean == other.report_mean
-            return Metric(self.name, self._v + other._v, self._w + other._w, report_mean=self.report_mean)
+            if self.report_mean:
+                return Metric(self.name, self._v + other._v, self._w + other._w, report_mean=self.report_mean)
+            else:
+                return Metric(self.name, self._v + other._v, report_mean=self.report_mean)
         else:
             # NOTE This is useful for sum() call.
             assert isinstance(other, (int, float)) and other == 0
@@ -92,7 +97,8 @@ class Metric:
 
     def clear(self):
         self._v = 0
-        self._w = 0
+        if self.report_mean:
+            self._w = 0
 
 
 # TODO(j_luo) Add tests and simplify syntax.
