@@ -13,6 +13,7 @@ class PBarOutOfBound(Exception):
 
 class BaseTrackable(ABC):
     # IDEA(j_luo) Trackable and Tracker classes can add_trackable and put it in a registry. Maybe we can abstract some class out of it.
+    # IDEA(j_luo) Maybe merge sth with Metric?
 
     def __init__(self, name: str, *, parent: Optional[BaseTrackable] = None, registry: Optional[TrackableRegistry] = None):
         self._name = name

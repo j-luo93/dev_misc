@@ -325,6 +325,7 @@ g = _Repository().get_view()
 ALLOWED_INIT_G_ATTR_DEFAULT = ['property', 'none', 'attribute']
 
 
+# IDEA(j_luo) Need a way to tell us what arguments a certain class needs, since we are now deprecating the usage of init_g_attr to preserve the call signature.
 @deprecated
 def init_g_attr(cls=None, *, default='none'):
     """The signature and the main body of this function follow `dataclass` in https://github.com/python/cpython/blob/master/Lib/dataclasses.py.

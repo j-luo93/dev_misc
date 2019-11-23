@@ -26,6 +26,7 @@ def plain(value):
     return value
 
 
+# IDEA(j_luo) Maybe we can have a hierarchical representation of this. So that metrics that corresond to prf would be separate from metrics from losses.
 class Metric:
 
     def __init__(self, name, value, weight=None, report_mean=True):
