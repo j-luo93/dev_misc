@@ -42,8 +42,8 @@ class Tracker:
     def is_finished(self, name: str):
         return self.trackable_reg[name].value >= self.trackable_reg[name].total
 
-    def add_trackable(self, name: str, *, total: int = None, agg_func: str = 'count') -> BaseTrackable:
-        trackable = self.trackable_reg.register_trackable(name, total=total, agg_func=agg_func)
+    def add_trackable(self, name: str, *, total: int = None, endless: bool = False, agg_func: str = 'count') -> BaseTrackable:
+        trackable = self.trackable_reg.register_trackable(name, total=total, endless=endless, agg_func=agg_func)
         return trackable
 
     def add_max_trackable(self, name: str) -> MaxTrackable:
@@ -74,6 +74,9 @@ class Tracker:
             return self.trackable_reg[attr].value
         except KeyError:
             raise AttributeError(f'No trackable named {attr}.')
+
+    def __getitem__(self, name: str):
+        return self.trackable_reg[name]
 
     def update(self, name: str, *, value: Any = None) -> bool:
         """Update a trackable, and return whether it is updated."""

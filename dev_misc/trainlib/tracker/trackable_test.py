@@ -41,6 +41,11 @@ class TestCountTrackable(TestCase):
         x.reset()
         self.assertEqual(x.value, 0)
 
+    def test_endless(self):
+        x = CountTrackable('check', endless=True, total=10)
+        for i in range(100):
+            x.update()
+
 
 class TestMaxMinTrackable(TestCase):
 

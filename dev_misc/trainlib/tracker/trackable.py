@@ -52,8 +52,9 @@ class CountTrackable(BaseTrackable):
 
     _manager = enlighten.get_manager()
 
-    def __init__(self, name: str, total: int, **kwargs):
+    def __init__(self, name: str, total: int, endless: bool = False, **kwargs):
         self._total = total
+        self._endless = endless
         self._pbar = self._manager.counter(desc=name, total=total)
         super().__init__(name, **kwargs)
 
@@ -66,6 +67,9 @@ class CountTrackable(BaseTrackable):
         return self._total
 
     def update(self) -> bool:
+        if self.value == self.total and self._endless:
+            self.reset()
+
         self._pbar.update()
         if self._total is not None and self._pbar.count > self._total:
             raise PBarOutOfBound(f'Progress bar ran out of bound.')
@@ -125,7 +129,7 @@ class TrackableRegistry:
     def __len__(self):
         return len(self._instances)
 
-    def register_trackable(self, name: str, *, total: int = None, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
+    def register_trackable(self, name: str, *, total: int = None, endless: bool = False, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
         """
         If `parent` is set, then this trackable will be reset whenever the parent is updated.
         """
@@ -133,7 +137,7 @@ class TrackableRegistry:
             raise ValueError(f'A trackable named "{name}" already exists.')
 
         if agg_func == 'count':
-            trackable = CountTrackable(name, total, parent=parent, registry=self)
+            trackable = CountTrackable(name, total, endless=endless, parent=parent, registry=self)
         elif agg_func == 'max':
             trackable = MaxTrackable(name, parent=parent, registry=self)
         elif agg_func == 'min':
