@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, overload
+from typing import Any, Dict, Iterator, List, Optional, Tuple, overload
 
 import enlighten
 
@@ -132,6 +132,9 @@ class TrackableRegistry:
 
     def __len__(self):
         return len(self._instances)
+
+    def items(self) -> Iterator[Tuple[str, BaseTrackable]]:
+        yield from self._instances.items()
 
     def register_trackable(self, name: str, *, total: int = None, endless: bool = False, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
         """

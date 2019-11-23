@@ -89,3 +89,8 @@ class Tracker:
         """Reset a trackable."""
         trackable = self.trackable_reg[name]
         trackable.reset()
+
+    def reset_all(self):
+        """Reset all trackables."""
+        for name, trackable in self.trackable_reg.items():
+            trackable.reset()
