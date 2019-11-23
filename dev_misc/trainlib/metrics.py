@@ -144,11 +144,14 @@ class Metrics:
     def __radd__(self, other):
         return self.__add__(other)
 
-    def __getattr__(self, key):
+    def __getattr__(self, attr: str):
         try:
-            return super().__getattribute__('_metrics')[key]
+            return self[attr]
         except KeyError:
-            raise AttributeError(f'Cannot find this attribute {key}')
+            raise AttributeError(f'Cannot find this attribute {attr}.')
+
+    def __getitem__(self, key: str):
+        return self._metrics[key]
 
     def get_table(self, title=''):
         t = pt()
