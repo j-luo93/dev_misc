@@ -88,7 +88,7 @@ class Metric:
     @property
     def mean(self):
         if self.report_mean:
-            return self._v / self._w
+            return self._v / (self._w + 1e-16)
         else:
             return 'N/A'
 
@@ -162,5 +162,7 @@ class Metrics:
         return t
 
     def clear(self):
-        for m in self._metrics.values():
-            m.clear()
+        self._metrics.clear()
+
+    def __len__(self):
+        return len(self._metrics)

@@ -9,6 +9,10 @@ class TestCountTrackable(TestCase):
     def setUp(self):
         reset_all()
 
+    def test_str(self):
+        x = CountTrackable('step', total=10)
+        self.assertEqual(str(x), 'step: 0')
+
     def test_update(self):
         x = CountTrackable('step', total=10)
         for i in range(10):

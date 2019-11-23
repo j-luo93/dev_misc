@@ -27,6 +27,9 @@ class BaseTrackable(ABC):
 
         self.reset()
 
+    def __str__(self):
+        return f'{self.name}: {self.value}'
+
     @property
     def name(self):
         return self._name

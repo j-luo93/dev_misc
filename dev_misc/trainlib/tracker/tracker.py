@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from functools import partial, update_wrapper
-from typing import Any, Dict, List, Sequence, Type
+from typing import Any, ClassVar, Dict, List, Sequence, Type
 
 from dev_misc.utils import deprecated
 
@@ -23,6 +23,7 @@ task_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), datac
 
 @task_class
 class Task:
+    name: ClassVar[str]
 
     def __hash__(self):
         return id(self)
