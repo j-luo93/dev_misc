@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, overload
 
 import enlighten
 
@@ -12,14 +12,18 @@ class PBarOutOfBound(Exception):
 
 
 class BaseTrackable(ABC):
+    # IDEA(j_luo) Trackable and Tracker classes can add_trackable and put it in a registry. Maybe we can abstract some class out of it.
 
-    def __init__(self, name: str, *, parent: BaseTrackable = None):
+    def __init__(self, name: str, *, parent: Optional[BaseTrackable] = None, registry: Optional[TrackableRegistry] = None):
         self._name = name
 
         self.children: List[BaseTrackable] = list()
         if parent is not None:
             # NOTE(j_luo) Every child here would be reset after the parent is updated.
             parent.children.append(self)
+
+        self.registry = registry if registry is not None else TrackableRegistry()
+
         self.reset()
 
     @property
@@ -40,8 +44,7 @@ class BaseTrackable(ABC):
         """Update this object and return whether the value is updated."""
 
     def add_trackable(self, name: str, *, total: int = None) -> BaseTrackable:
-        factory = TrackableFactory()
-        trackable = factory.register_trackable(name, total=total, parent=self)
+        trackable = self.registry.register_trackable(name, total=total, parent=self)
         return trackable
 
 
@@ -49,10 +52,10 @@ class CountTrackable(BaseTrackable):
 
     _manager = enlighten.get_manager()
 
-    def __init__(self, name: str, total: int, *, parent: BaseTrackable = None):
+    def __init__(self, name: str, total: int, **kwargs):
         self._total = total
         self._pbar = self._manager.counter(desc=name, total=total)
-        super().__init__(name, parent=parent)
+        super().__init__(name, **kwargs)
 
     @classmethod
     def reset_all(cls):
@@ -109,13 +112,18 @@ class MinTrackable(MaxTrackable):
 
 
 def reset_all():
-    TrackableFactory.reset_all()
+    TrackableRegistry.reset_all()
 
 
-class TrackableFactory:
-    # IDEA(j_luo) Rewrite this so that it serves as a container. Instead of using __new__, we can use __init__, but some method like get_trackable(*args, **kwargs). This can structure the `trackables` attribute in Tracker as well.
+class TrackableRegistry:
 
     _instances: Dict[str, BaseTrackable] = dict()
+
+    def __getitem__(self, name: str) -> BaseTrackable:
+        return self._instances[name]
+
+    def __len__(self):
+        return len(self._instances)
 
     def register_trackable(self, name: str, *, total: int = None, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
         """
@@ -125,15 +133,16 @@ class TrackableFactory:
             raise ValueError(f'A trackable named "{name}" already exists.')
 
         if agg_func == 'count':
-            obj = CountTrackable(name, total, parent=parent)
+            trackable = CountTrackable(name, total, parent=parent, registry=self)
         elif agg_func == 'max':
-            obj = MaxTrackable(name, parent=parent)
+            trackable = MaxTrackable(name, parent=parent, registry=self)
         elif agg_func == 'min':
-            obj = MinTrackable(name, parent=parent)
+            trackable = MinTrackable(name, parent=parent, registry=self)
         else:
             raise ValueError(f'Unrecognized aggregate function {agg_func}.')
+        self._instances[name] = trackable
 
-        return obj
+        return trackable
 
     @classmethod
     def reset_all(cls):

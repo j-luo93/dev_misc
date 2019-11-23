@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from .trackable import PBarOutOfBound, CountTrackable, reset_all, MaxTrackable, MinTrackable
+from .trackable import (CountTrackable, MaxTrackable, MinTrackable,
+                        PBarOutOfBound, TrackableRegistry, reset_all)
 
 
 class TestCountTrackable(TestCase):
@@ -64,3 +65,18 @@ class TestMaxMinTrackable(TestCase):
         for i in range(5):
             x.update(i)
         self.assertEqual(x.value, 0)
+
+
+class TestTrackableRegistry(TestCase):
+
+    def setUp(self):
+        reset_all()
+        self.reg = TrackableRegistry()
+        self.reg.register_trackable('t1', total=200)
+        self.reg.register_trackable('t2', total=100)
+
+    def test_basic(self):
+        self.assertEqual(len(self.reg), 2)
+
+    def test_getitem(self):
+        self.assertEqual(self.reg['t1'].total, 200)

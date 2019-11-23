@@ -13,8 +13,10 @@ from dataclasses import dataclass
 from functools import partial, update_wrapper
 from typing import Any, Dict, List, Sequence, Type
 
+from dev_misc.utils import deprecated
+
 from .trackable import (BaseTrackable, MaxTrackable, MinTrackable,
-                        TrackableFactory, TrackableUpdater)
+                        TrackableRegistry, TrackableUpdater)
 
 task_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
 
@@ -35,15 +37,13 @@ class Tracker:
         self.tasks: List[Task] = list()
         self.task_weights: List[Task] = list()
 
-        self.trackables: Dict[str, BaseTrackable] = dict()
+        self.trackable_reg = TrackableRegistry()
 
     def is_finished(self, name: str):
-        return self.trackables[name].value >= self.trackables[name].total
+        return self.trackable_reg[name].value >= self.trackable_reg[name].total
 
     def add_trackable(self, name: str, *, total: int = None, agg_func: str = 'count') -> BaseTrackable:
-        factory = TrackableFactory()
-        trackable = factory.register_trackable(name, total=total, agg_func=agg_func)
-        self.trackables[name] = trackable
+        trackable = self.trackable_reg.register_trackable(name, total=total, agg_func=agg_func)
         return trackable
 
     def add_max_trackable(self, name: str) -> MaxTrackable:
@@ -52,18 +52,8 @@ class Tracker:
     def add_min_trackable(self, name: str) -> MinTrackable:
         return self.add_trackable(name, agg_func='min')
 
-    def ready(self):
-
-        _trackables_to_update = dict()
-
-        def flatten(trackable: BaseTrackable):
-            _trackables_to_update[trackable.name] = trackable
-            for child in trackable.children:
-                flatten(child)
-
-        for trackable in self.trackables.values():
-            flatten(trackable)
-        self.trackables.update(_trackables_to_update)
+    @deprecated
+    def ready(self): ...
 
     def add_task(self, task: Task, weight: float):
         self.tasks.append(task)
@@ -81,17 +71,17 @@ class Tracker:
 
     def __getattr__(self, attr: str):
         try:
-            return self.trackables[attr].value
+            return self.trackable_reg[attr].value
         except KeyError:
             raise AttributeError(f'No trackable named {attr}.')
 
     def update(self, name: str, *, value: Any = None) -> bool:
         """Update a trackable, and return whether it is updated."""
-        trackable = self.trackables[name]
+        trackable = self.trackable_reg[name]
         updater = TrackableUpdater(trackable)
         return updater.update(value=value)
 
     def reset(self, name: str):
         """Reset a trackable."""
-        trackable = self.trackables[name]
+        trackable = self.trackable_reg[name]
         trackable.reset()
