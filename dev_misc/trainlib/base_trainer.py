@@ -72,26 +72,30 @@ class BaseTrainer(ABC):
         if not self.check_interval:
             return
 
+        self.tracker.update(self.check_tname)
+        if not self.tracker.is_finished(self.check_tname):
+            return
+
         self.check(metrics)
 
     def check(self, metrics: Metrics):
-        self.tracker.update(self.check_tname)
-        if self.tracker.is_finished(self.check_tname):
-            logging.info(metrics.get_table(title=str(self.tracker[self.main_tname])))
-            metrics.clear()
+        logging.info(metrics.get_table(title=str(self.tracker[self.main_tname])))
+        metrics.clear()
 
     def try_evaluate(self) -> Optional[Metrics]:
         if not self.eval_interval or self.evaluator is None:
             return
 
+        self.tracker.update(self.eval_tname)
+        if not self.tracker.is_finished(self.eval_tname):
+            return
+
         return self.evaluate()
 
     def evaluate(self):
-        self.tracker.update(self.eval_tname)
-        if self.tracker.is_finished(self.eval_tname):
-            eval_metrics = self.evaluator.evaluate(self.tracker)
-            logging.info(eval_metrics.get_table(title='Eval'))
-            return eval_metrics
+        eval_metrics = self.evaluator.evaluate(self.tracker)
+        logging.info(eval_metrics.get_table(title='Eval'))
+        return eval_metrics
 
     def try_save(self, eval_metrics: Optional[Metrics]):
         if not eval_metrics:
