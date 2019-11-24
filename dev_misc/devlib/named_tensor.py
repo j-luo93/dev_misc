@@ -1,4 +1,3 @@
-from dev_misc import FT, LT
 import ctypes
 import inspect
 import warnings
@@ -13,6 +12,7 @@ import torch
 import torch.nn as nn
 
 import dev_misc.devlib.helper as helper
+from dev_misc import FT, LT
 from dev_misc.utils import deprecated
 
 Module = nn.Module
@@ -24,6 +24,7 @@ Tensor = torch.Tensor
 @dataclass
 class Patch:
     module: ModuleType
+    name: str  # NOTE(j_luo) This is the name of the patched function under module.
     unpatched: Optional[Callable]
     patched: Callable
 
@@ -54,7 +55,7 @@ class _Patcher:
         self._patches: Dict[str, Patch] = dict()
         self._patched = False
 
-    def patch(self, patchable: _Patchable, create: bool = False):
+    def patch(self, patchable: _Patchable, create: bool = False, caller_name: Optional[str] = None):
         """
         Note that this doesn't actually patch the functions -- it just hooks them. To actually patch them, use `patch_named_tensors`.
         If `create` is set to True, create a new method instead.
@@ -69,10 +70,12 @@ class _Patcher:
                 unpatched = None
             else:
                 unpatched = getattr(patchable, name)
-            patch = Patch(patchable, unpatched, patched)
-            if name in self._patches:
-                raise NameError(f'Duplicate name "{name}".')
-            self._patches[name] = patch
+            patch = Patch(patchable, name, unpatched, patched)
+
+            _caller_name = caller_name if caller_name else name
+            if _caller_name in self._patches:
+                raise NameError(f'Duplicate name "{_caller_name}".')
+            self._patches[_caller_name] = patch
             return patched
 
         return decorator
@@ -95,15 +98,15 @@ class _Patcher:
     def patch_named_tensors(self):
         if self._patched:
             raise RuntimeError(f'Already patched.')
-        for name, patch in self._patches.items():
-            setattr(patch.module, name, patch.patched)
+        for caller_name, patch in self._patches.items():
+            setattr(patch.module, patch.name, patch.patched)
         self._patched = True
 
     def unpatch_named_tensors(self):
         if not self._patched:
             raise RuntimeError(f'Not patched yet.')
-        for name, patch in self._patches.items():
-            setattr(patch.module, name, patch.unpatched)
+        for caller_name, patch in self._patches.items():
+            setattr(patch.module, patch.name, patch.unpatched)
         self._patched = False
 
 
@@ -146,7 +149,8 @@ class NoName:
             tensor.reveal_names()
 
 
-_Configuration = List[Tuple[_Patchable, List[str]]]
+_Name = Union[str, Tuple[str, str]]
+_Configuration = List[Tuple[_Patchable, List[_Name]]]
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu']),
     (torch, ['zeros_like', 'full_like', 'layer_norm']),
@@ -155,13 +159,18 @@ _to_inherit: _Configuration = [
 _to_inc_refcount: _Configuration = [
     (torch.Tensor, ['refine_names', 'rename', 'rename_', 'align_to', 'align_as'])
 ]
+_to_drop: _Configuration = [
+    (torch.nn.Module, [('state_dict', 'module_state_dict')]),
+    (torch.optim.Optimizer, [('state_dict', 'optimizer_state_dict')])
+]
 _all_to_patch: Dict[str, _Configuration] = {
     'inherit': _to_inherit,
-    'inc_refcount': _to_inc_refcount
+    'inc_refcount': _to_inc_refcount,
+    'drop': _to_drop
 }
 
 
-def _gen_function(patchable: _Patchable, name: str, action: str):
+def _gen_function(patchable: _Patchable, name: str, action: str, caller_name: str):
     old_func = getattr(patchable, name)
 
     if action == 'inherit':
@@ -170,7 +179,7 @@ def _gen_function(patchable: _Patchable, name: str, action: str):
         def wrapped(tensor: Tensor, *args, **kwargs):
 
             with NoName(tensor, *args, **kwargs):
-                ret = call_unpatched(tensor, *args, caller_name=name, **kwargs)
+                ret = call_unpatched(tensor, *args, caller_name=caller_name, **kwargs)
             return ret.refine_names(*tensor.names)
 
     elif action == 'inc_refcount':
@@ -180,9 +189,30 @@ def _gen_function(patchable: _Patchable, name: str, action: str):
 
         @wraps(old_func)
         def wrapped(*args, **kwargs):
-            ret = call_unpatched(*args, caller_name=name, **kwargs)
+            ret = call_unpatched(*args, caller_name=caller_name, **kwargs)
             for _ in range(2 * (len(args) + len(kwargs))):
                 _incref(None)
+            return ret
+
+    elif action == 'drop':
+
+        @wraps(old_func)
+        def wrapped(*args, **kwargs):
+            with NoName(*args, **kwargs):
+                ret = call_unpatched(*args, caller_name=caller_name, **kwargs)
+
+            def de_name(obj):
+                if isinstance(obj, dict):
+                    for v in obj.values():
+                        de_name(v)
+                elif isinstance(obj, Sequence):
+                    for v in obj:
+                        de_name(v)
+                else:
+                    if torch.is_tensor(obj):
+                        obj.rename_(None)
+
+            de_name(ret)
             return ret
 
     return wrapped
@@ -192,15 +222,22 @@ def _gen_function(patchable: _Patchable, name: str, action: str):
 for action, config in _all_to_patch.items():
     for patchable, names in config:
         for name in names:
-            patched = _gen_function(patchable, name, action)
-            patch(patchable)(patched)
+            if isinstance(name, tuple):
+                name, caller_name = name
+            else:
+                caller_name = name
+            patched = _gen_function(patchable, name, action, caller_name)
+            patch(patchable, caller_name=caller_name)(patched)
 
 
-@patch(torch.nn.Module)
-def state_dict(self, *args, **kwargs):
-    ret = call_unpatched(self, *args, **kwargs)
-    ret = {k: v.rename(None) for k, v in ret.items()}
-    return ret
+# @patch(torch.nn.Module)
+# def state_dict(self, *args, **kwargs):
+#     ret = call_unpatched(self, *args, **kwargs)
+#     ret = {k: v.rename(None) for k, v in ret.items()}
+#     return ret
+
+# @patch(torch.optim.Optimizer)
+# def state_dict(self, *args)
 
 
 @patch(torch.nn.Module)
