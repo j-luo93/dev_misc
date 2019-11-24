@@ -89,7 +89,7 @@ class BaseTrainer(ABC):
     def evaluate(self):
         self.tracker.update(self.eval_tname)
         if self.tracker.is_finished(self.eval_tname):
-            eval_metrics = self.evaluator.evaluate()
+            eval_metrics = self.evaluator.evaluate(self.tracker)
             logging.info(eval_metrics.get_table(title='Eval'))
             return eval_metrics
 
