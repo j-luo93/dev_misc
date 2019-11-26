@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -5,6 +7,7 @@ import torch
 from prettytable import PrettyTable as pt
 
 # TODO(j_luo) Rename this to Stats maybe?
+# TODO(j_luo) Add tests
 
 
 def plain(value):
@@ -101,6 +104,10 @@ class Metric:
         if self.report_mean:
             self._w = 0
 
+    # TODO(j_luo) Think about api
+    def with_prefix_(self, prefix: str) -> Metric:
+        return Metric(f'{prefix}_{self.name}', self._v, weight=self._w, report_mean=self._report_mean)
+
 
 # TODO(j_luo) Add tests and simplify syntax.
 class Metrics:
@@ -169,3 +176,8 @@ class Metrics:
 
     def __len__(self):
         return len(self._metrics)
+
+    # TODO(j_luo) Think about api for this one.
+    def with_prefix_(self, prefix: str) -> Metrics:
+        metrics = [metric.with_prefix_(prefix) for metric in self._metrics.values()]
+        return Metrics(*metrics)

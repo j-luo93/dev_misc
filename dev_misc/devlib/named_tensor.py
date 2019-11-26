@@ -350,7 +350,9 @@ def gather(self, dim: Dim, index: torch.LongTensor, *args, **kwargs):
         elif len(index_unique_names) == 1:
             unique_name = index_unique_names[0]
             index = index.rename(**{unique_name: dim})
-        index = index.align_as(self)
+        # TODO(j_luo) unittest the following two lines.
+        shape = [self.size(d) if d in common_names else -1 for d in self.names]
+        index = index.align_as(self).expand(*shape)
         dim_int = self.names.index(dim)
         with NoName(self, index):
             ret = call_unpatched(self, dim_int, index, *args, **kwargs)
