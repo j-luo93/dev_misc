@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List, Optional, Tuple, overload
@@ -74,7 +75,14 @@ class CountTrackable(BaseTrackable):
         if self.value == self.total and self._endless:
             self.reset()
 
-        self._pbar.update()
+        while True:
+            try:
+                self._pbar.update()
+                break
+            except RuntimeError:
+                logging.exception('Encountered some issue when updating the progress bar. Waiting to retry again')
+                time.sleep(1)
+
         if self._total is not None and self._pbar.count > self._total:
             raise PBarOutOfBound(f'Progress bar ran out of bound.')
         for trackable in self.children:
