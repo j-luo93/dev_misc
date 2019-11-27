@@ -6,6 +6,8 @@ import numpy as np
 import torch
 from prettytable import PrettyTable as pt
 
+from typing_extensions import Protocol
+
 # TODO(j_luo) Rename this to Stats maybe?
 # TODO(j_luo) Add tests
 
@@ -29,7 +31,13 @@ def plain(value):
     return value
 
 
+class SupportsStr(Protocol):
+
+    def __str__(self) -> str: ...
+
 # IDEA(j_luo) Maybe we can have a hierarchical representation of this. So that metrics that corresond to prf would be separate from metrics from losses.
+
+
 class Metric:
 
     def __init__(self, name, value, weight=None, report_mean=True):
@@ -105,7 +113,7 @@ class Metric:
             self._w = 0
 
     # TODO(j_luo) Think about api
-    def with_prefix_(self, prefix: str) -> Metric:
+    def with_prefix_(self, prefix: SupportsStr) -> Metric:
         return Metric(f'{prefix}_{self.name}', self._v, weight=self._w, report_mean=self._report_mean)
 
 
@@ -178,6 +186,6 @@ class Metrics:
         return len(self._metrics)
 
     # TODO(j_luo) Think about api for this one.
-    def with_prefix_(self, prefix: str) -> Metrics:
+    def with_prefix_(self, prefix: SupportsStr) -> Metrics:
         metrics = [metric.with_prefix_(prefix) for metric in self._metrics.values()]
         return Metrics(*metrics)
