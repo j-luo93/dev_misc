@@ -154,7 +154,7 @@ _Configuration = List[Tuple[_Patchable, List[_Name]]]
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu']),
     (torch, ['zeros_like', 'full_like', 'layer_norm']),
-    (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__'])
+    (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__'])
 ]
 _to_inc_refcount: _Configuration = [
     (torch.Tensor, ['refine_names', 'rename', 'rename_', 'align_to', 'align_as'])
