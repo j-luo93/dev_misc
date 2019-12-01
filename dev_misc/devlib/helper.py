@@ -1,3 +1,4 @@
+import re
 import logging
 import os
 import warnings
@@ -123,7 +124,10 @@ def dataclass_size_repr(self):
         else:
             out.append(f'{attr}={getattr(self, attr)!r}')
     cls = type(self)
-    return f"{cls.__name__}({', '.join(out)})"
+    header = cls.__name__
+    out = [re.sub(r'(\n\t*)', r'\1\t', o) for o in out]
+    content = ',\n\t'.join(out)
+    return f'{header}(\n\t{content}\n)'
 
 
 T = TypeVar('T')

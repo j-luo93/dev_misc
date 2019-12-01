@@ -118,6 +118,7 @@ class Metric:
 
 
 # TODO(j_luo) Add tests and simplify syntax.
+# TODO(j_luo) metrics should be structured like dataclasses. If there are too many of them, we can place them under some catch-all value.
 class Metrics:
 
     def __init__(self, *metrics):
