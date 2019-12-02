@@ -43,7 +43,7 @@ def get_tensor(x: Tensorable, cpu=False) -> Tensor:
     return tensor
 
 
-def get_zeros(*shape: int, cpu: bool = False):
+def get_zeros(*shape: int, cpu: bool = False) -> torch.Tensor:
     """Get zeros and move to gpu if possible."""
     return get_tensor(torch.zeros(*shape), cpu=cpu)
 
@@ -147,12 +147,12 @@ def dataclass_cuda(self: T) -> T:
 
 def dataclass_numpy(self: T) -> T:
     """Convert tensors to numpy arrays if possible. This is out-of-place."""
-    ret = deepcopy(self)
+    ret = deepcopy(self)  # FIXME(j_luo) This would raise error if self contains non-leaf nodes.
     for attr, field in ret.__dataclass_fields__.items():
         anno = field.type
         if _is_tensor_type(anno):
             tensor = getattr(ret, attr)
-            setattr(ret, attr, tensor.cpu().numpy())
+            setattr(ret, attr, tensor.detach().cpu().numpy())
     return ret
 
 

@@ -245,8 +245,11 @@ def _apply(self, func: Callable):
 
     @wraps(func)
     def wrapped(tensor: torch.Tensor):
-        tensor.hide_names()
-        return func(tensor)
+        with NoName(tensor):
+            ret = func(tensor)
+        ret.rename_(*tensor.names)
+        ret.hide_names()
+        return ret
 
     def post_apply(module: torch.nn.Module):
         for child in module.children():

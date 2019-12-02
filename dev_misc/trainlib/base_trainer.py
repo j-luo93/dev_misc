@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from itertools import tee
 from typing import NewType, Optional, Sequence
 
+import torch
+
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
 from .tracker.tracker import Task, Tracker
@@ -90,7 +92,9 @@ class BaseTrainer(ABC):
         if not self.tracker.is_finished(self.eval_tname):
             return
 
-        return self.evaluate()
+        self.model.eval()
+        with torch.no_grad():
+            return self.evaluate()
 
     def evaluate(self):
         eval_metrics = self.evaluator.evaluate(self.tracker)
@@ -101,7 +105,9 @@ class BaseTrainer(ABC):
         if not eval_metrics:
             return
 
-        self.save(eval_metrics)
+        self.model.eval()
+        with torch.no_grad():
+            self.save(eval_metrics)
 
     @abstractmethod
     def save(self, eval_metrics: Metrics): ...
