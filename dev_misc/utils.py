@@ -1,6 +1,9 @@
 import inspect
 import warnings
 from functools import wraps
+from typing import Iterable, Iterator, Optional
+
+import enlighten
 
 
 def check_explicit_arg(value):
@@ -47,3 +50,21 @@ def deprecated(func_or_cls):
 
 def buggy(func_or_cls):
     return _issue_warning(func_or_cls, f'Class/function {func_or_cls.__name__} is buggy.', RuntimeWarning)
+
+
+# NOTE(j_luo) This is a enlighten manager that is shared across all pbars and trackables.
+manager = enlighten.get_manager()
+
+
+def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
+    try:
+        total = len(iterable)
+    except TypeError:
+        total = None
+
+    cnt = manager.counter(desc=desc, total=total)
+    iterator = iter(iterable)
+    for item in iterator:
+        yield item
+        cnt.update()
+    cnt.close()

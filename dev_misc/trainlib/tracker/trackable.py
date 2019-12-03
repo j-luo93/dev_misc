@@ -5,7 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List, Optional, Tuple, overload
 
-import enlighten
+from dev_misc.utils import manager
 
 
 class PBarOutOfBound(Exception):
@@ -55,17 +55,11 @@ class BaseTrackable(ABC):
 
 class CountTrackable(BaseTrackable):
 
-    _manager = enlighten.get_manager()
-
     def __init__(self, name: str, total: int, endless: bool = False, **kwargs):
         self._total = total
         self._endless = endless
-        self._pbar = self._manager.counter(desc=name, total=total)
+        self._pbar = manager.counter(desc=name, total=total)
         super().__init__(name, **kwargs)
-
-    @classmethod
-    def reset_all(cls):
-        cls._manager = enlighten.get_manager()
 
     @property
     def total(self):
@@ -166,7 +160,6 @@ class TrackableRegistry:
     @classmethod
     def reset_all(cls):
         cls._instances.clear()
-        CountTrackable.reset_all()
 
 
 class TrackableUpdater:
