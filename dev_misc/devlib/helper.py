@@ -122,11 +122,12 @@ def dataclass_size_repr(self):
     for field in fields(self):
         attr = field.name
         anno = field.type
-        if _is_np_type(anno) or _is_tensor_type(anno):
-            shape = tuple(getattr(self, attr).shape)
+        value = getattr(self, attr)
+        if value is not None and (_is_np_type(anno) or _is_tensor_type(anno)):
+            shape = tuple(value.shape)
             out.append(f'{attr}: {shape}')
         else:
-            out.append(f'{attr}={getattr(self, attr)!r}')
+            out.append(f'{attr}={value!r}')
     cls = type(self)
     header = cls.__name__
     out = [re.sub(r'(\n\t*)', r'\1\t', o) for o in out]

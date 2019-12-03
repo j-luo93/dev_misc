@@ -1,4 +1,3 @@
-from typing import Sequence
 import ctypes
 import inspect
 import warnings
