@@ -36,7 +36,7 @@ class TestHelper(TestCase):
             __repr__ = dataclass_size_repr
 
         test = Test(1, torch.randn(32, 10), np.zeros([2, 10]))
-        ans = 'Test(x=1, y: (32, 10), z: (2, 10))'
+        ans = 'Test(\n\tx=1,\n\ty: (32, 10),\n\tz: (2, 10)\n)'
         self.assertEqual(repr(test), ans)
 
     def test_get_array(self):

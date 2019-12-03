@@ -121,6 +121,11 @@ call_unpatched = _patcher.call_unpatched
 
 @patch(torch.Tensor, create=True)
 def hide_names(self):
+    try:
+        self._hidden_names_depth += 1
+    except AttributeError:
+        self._hidden_names_depth = 1
+
     if self.has_names() and not hasattr(self, '_hidden_names'):
         self._hidden_names = self.names
         self.rename_(None)
@@ -129,9 +134,15 @@ def hide_names(self):
 
 @patch(torch.Tensor, create=True)
 def reveal_names(self):
-    if hasattr(self, '_hidden_names'):
+    try:
+        self._hidden_names_depth -= 1
+    except AttributeError:
+        self._hidden_names_depth = 0
+
+    if self._hidden_names_depth == 0 and hasattr(self, '_hidden_names'):
         self.rename_(*self._hidden_names)
         del self._hidden_names
+        del self._hidden_names_depth
     return self
 
 
@@ -174,9 +185,16 @@ class NameHelper:
     def _register_names(self, tensor: torch.Tensor):
         for size, name in zip(tensor.shape, tensor.names):
             if name is not None:
-                if name in self._reg and self._reg[name] != size:
-                    raise RuntimeError(f'The same names is used for two different sizes.')
-                self._reg[name] = size
+                if name in self._reg:
+                    reg_size = self._reg[name]
+                    # NOTE(j_luo) Ignore size 1 since it's used in broadcasting very often.
+                    # IDEA(j_luo) But size 1 can actually be size 1, instead of being a dummy axis.
+                    if reg_size != size and reg_size != 1 and size != 1:
+                        raise RuntimeError(f'The same name is used for two different sizes other than 1.')
+                    if reg_size == 1 and size != 1:
+                        self._reg[name] = size
+                else:
+                    self._reg[name] = size
 
     @wraps(torch.Tensor.flatten)
     def flatten(self, tensor: torch.Tensor, names_to_flatten: Sequence[str], new_name: str) -> torch.Tensor:

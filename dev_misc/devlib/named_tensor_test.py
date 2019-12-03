@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules import MultiheadAttention
 
-from .named_tensor import (adv_index, embed, expand_as, get_named_range,
-                           patch_named_tensors, self_attend,
+from .named_tensor import (NoName, adv_index, embed, expand_as,
+                           get_named_range, patch_named_tensors, self_attend,
                            unpatch_named_tensors)
 
 
@@ -152,3 +152,12 @@ class TestNamedTensorPatch(TestNamedTensorBase):
         out = torch.embedding(weight, index)
         self.has_shape(out, (8, 3, 10))
         self.has_names(out, ('batch', 'length', 'dim'))
+
+    def test_nested_hide_names(self):
+        x = torch.randn(100, 10, names=['vocab', 'dim'])
+        with NoName(x):
+            self.assertFalse(x.has_names())
+            with NoName(x):
+                self.assertFalse(x.has_names())
+            self.assertFalse(x.has_names())
+        self.assertTrue(x.has_names())
