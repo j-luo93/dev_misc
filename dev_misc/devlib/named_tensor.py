@@ -149,6 +149,22 @@ class NoName:
             tensor.reveal_names()
 
 
+class Rename:
+
+    def __init__(self, *tensors: torch.Tensor, **kwargs):
+        self._to_track = tensors
+        self._old2new = kwargs
+
+    def __enter__(self):
+        for tensor in self._to_track:
+            tensor.rename_(**self._old2new)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        new2old = {v: k for k, v in self._old2new.items()}
+        for tensor in self._to_track:
+            tensor.rename_(**new2old)
+
+
 _Name = Union[str, Tuple[str, str]]
 _Configuration = List[Tuple[_Patchable, List[_Name]]]
 _to_inherit: _Configuration = [
