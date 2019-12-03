@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass, fields
 from functools import partial, update_wrapper, wraps
 from typing import Any, List, Sequence, Type, TypeVar, Union
+from dev_misc.trainlib import has_gpus
 
 import numpy as np
 import torch
@@ -44,8 +45,11 @@ def get_tensor(x: Tensorable, cpu=False) -> Tensor:
 
 
 def get_zeros(*shape: int, cpu: bool = False) -> torch.Tensor:
-    """Get zeros and move to gpu if possible."""
-    return get_tensor(torch.zeros(*shape), cpu=cpu)
+    """Get zeros and use gpu if possible."""
+    if has_gpus() and not cpu:
+        return torch.cuda.FloatTensor(*shape).fill_(0.0)
+    else:
+        return torch.zeros(*shape)
 
 
 def get_range(size: int, ndim: int, dim: int, cpu: bool = False):

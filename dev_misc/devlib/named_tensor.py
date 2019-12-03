@@ -1,3 +1,4 @@
+from typing import Sequence
 import ctypes
 import inspect
 import warnings
@@ -163,6 +164,32 @@ class Rename:
         new2old = {v: k for k, v in self._old2new.items()}
         for tensor in self._to_track:
             tensor.rename_(**new2old)
+
+
+class NameHelper:
+
+    def __init__(self):
+        self._reg = dict()
+
+    def _register_names(self, tensor: torch.Tensor):
+        for size, name in zip(tensor.shape, tensor.names):
+            if name is not None:
+                if name in self._reg and self._reg[name] != size:
+                    raise RuntimeError(f'The same names is used for two different sizes.')
+                self._reg[name] = size
+
+    @wraps(torch.Tensor.flatten)
+    def flatten(self, tensor: torch.Tensor, names_to_flatten: Sequence[str], new_name: str) -> torch.Tensor:
+        self._register_names(tensor)
+        ret = tensor.flatten(names_to_flatten, new_name)
+        self._register_names(ret)
+        return ret
+
+    @wraps(torch.Tensor.unflatten)
+    def unflatten(self, tensor: torch.Tensor, name_to_unflatten: str, names: Sequence[str]) -> torch.Tensor:
+        name_size_pairs = [(name, self._reg[name]) for name in names]
+        ret = tensor.unflatten(name_to_unflatten, name_size_pairs)
+        return ret
 
 
 _Name = Union[str, Tuple[str, str]]
