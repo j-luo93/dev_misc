@@ -58,7 +58,7 @@ class Metric:
             return f'{plain(self.total)}'
 
     def __repr__(self):
-        return f'Metric(name={self.name}, report_mean={self.report_mean})'
+        return f'Metric(name={self.name}, value={self.value}, report_mean={self.report_mean})'
 
     def __eq__(self, other):
         return self.name == other.name
@@ -133,6 +133,14 @@ class Metrics:
                 self._metrics = {metric.name: metric for metric in metrics}
         else:
             self._metrics = dict()
+
+    def rename(self, old_name: str, new_name: str):
+        '''This is in-place.'''
+        metric = self._metrics[old_name]
+        metric.rename(new_name)
+        self._metrics[new_name] = metric
+        del self._metrics[old_name]
+        return self
 
     def items(self):
         yield from self._metrics.items()

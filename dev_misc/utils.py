@@ -67,4 +67,5 @@ def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
     for item in iterator:
         yield item
         cnt.update()
+    cnt.clear()
     cnt.close()
