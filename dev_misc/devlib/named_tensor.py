@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from functools import wraps
 from itertools import chain
 from types import ModuleType
-from typing import (Any, Callable, Dict, List, Optional, Sequence, Tuple, Type,
-                    Union)
+from typing import (Any, Callable, Dict, List, Mapping, Optional, Sequence,
+                    Tuple, Type, Union)
 
 import torch
 import torch.nn as nn
@@ -144,6 +144,28 @@ def reveal_names(self):
         del self._hidden_names_depth
     return self
 
+    # def __init__(self, *args, **kwargs):
+
+    #     self._to_track = list()
+
+    #     def _get_tensors(obj):
+    #         # Try mapping.
+    #         if isinstance(obj, Mapping):
+    #             for value in obj.values():
+    #                 _get_tensors(value)
+    #         elif torch.is_tensor(obj):
+    #             self._to_track.append(obj)
+    #         elif not isinstance(obj, str):
+    #             # Try iterator.
+    #             try:
+    #                 for item in obj:
+    #                     _get_tensors(item)
+    #             except TypeError:
+    #                 pass
+
+    #     _get_tensors(args)
+    #     _get_tensors(kwargs)
+
 
 class NoName:
 
@@ -158,6 +180,27 @@ class NoName:
     def __exit__(self, exc_type, exc_value, traceback):
         for tensor in self._to_track:
             tensor.reveal_names()
+
+
+def drop_names(obj: object):
+    """Drop names of all tensors nested in obj. Out-of-place."""
+
+    def _drop_helper(obj):
+        out = obj
+        # Try mapping.
+        if isinstance(obj, Mapping):
+            out = {k: _drop_helper(value) for k, value in obj.items()}
+        elif torch.is_tensor(obj):
+            out = out.rename(None)
+        elif not isinstance(obj, str):
+            # Try iterator.
+            try:
+                out = type(obj)(_drop_helper(item) for item in obj)
+            except TypeError:
+                pass
+        return out
+
+    return _drop_helper(obj)
 
 
 class Rename:
@@ -260,20 +303,7 @@ def _gen_function(patchable: _Patchable, name: str, action: str, caller_name: st
         def wrapped(*args, **kwargs):
             with NoName(*args, **kwargs):
                 ret = call_unpatched(*args, caller_name=caller_name, **kwargs)
-
-            def de_name(obj):
-                if isinstance(obj, dict):
-                    for v in obj.values():
-                        de_name(v)
-                elif isinstance(obj, Sequence):
-                    for v in obj:
-                        de_name(v)
-                else:
-                    if torch.is_tensor(obj):
-                        obj.rename_(None)
-
-            de_name(ret)
-            return ret
+            return drop_names(ret)
 
     return wrapped
 

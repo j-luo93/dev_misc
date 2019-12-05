@@ -1,7 +1,7 @@
 import inspect
 import warnings
 from functools import wraps
-from typing import Iterable, Iterator, Optional
+from typing import Iterable, Iterator, Mapping, Optional
 
 import enlighten
 
@@ -69,3 +69,19 @@ def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
         cnt.update()
     cnt.clear()
     cnt.close()
+
+
+class WithholdKeys:
+
+    def __init__(self, dict_like: Mapping, *keys: str):
+        self._to_track = dict_like
+        self._keys = keys
+        self._withheld = dict()
+
+    def __enter__(self):
+        for key in self._keys:
+            self._withheld[key] = self._to_track[key]
+            del self._to_track[key]
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._to_track.update(self._withheld)
