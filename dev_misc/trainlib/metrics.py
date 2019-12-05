@@ -149,6 +149,7 @@ class Metrics:
         out = '\n'.join([f'{k}: {m}' for k, m in self._metrics.items()])
         return out
 
+    # IDEA(j_luo) Do sth similar to dataclass_repr with pprint?
     def __repr__(self):
         return f'Metrics({", ".join(self._metrics.keys())})'
 

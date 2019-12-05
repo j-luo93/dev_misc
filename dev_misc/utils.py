@@ -67,6 +67,7 @@ def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
     for item in iterator:
         yield item
         cnt.update()
+    # FIXME(j_luo) This is not done properly. The old pbar will still be on the screen.
     cnt.clear()
     cnt.close()
 
