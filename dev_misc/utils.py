@@ -59,6 +59,7 @@ manager = enlighten.get_manager()
 
 
 def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
+    # FIXME(j_luo) Will leave the pbar hanging if there is a break in for-loop.
     try:
         total = len(iterable)
     except TypeError:

@@ -41,8 +41,8 @@ class Tracker:
 
         self.trackable_reg = TrackableRegistry()
 
-    def is_finished(self, name: str):
-        return self.trackable_reg[name].value >= self.trackable_reg[name].total
+    def is_finished(self, *names: str) -> bool:
+        return all(self.trackable_reg[name].is_finished for name in names)
 
     def add_trackable(self, name: str, *, total: int = None, endless: bool = False, agg_func: str = 'count') -> BaseTrackable:
         trackable = self.trackable_reg.register_trackable(name, total=total, endless=endless, agg_func=agg_func)
@@ -55,7 +55,8 @@ class Tracker:
         return self.add_trackable(name, agg_func='min')
 
     @deprecated
-    def ready(self): ...
+    def ready(self):
+        pass
 
     def add_task(self, task: Task, weight: float):
         self.tasks.append(task)

@@ -93,6 +93,10 @@ class CountTrackable(BaseTrackable):
     def value(self):
         return self._pbar.count
 
+    @property
+    def is_finished(self) -> bool:
+        return self._total and self._pbar.count >= self._total
+
 
 class MaxTrackable(BaseTrackable):
 

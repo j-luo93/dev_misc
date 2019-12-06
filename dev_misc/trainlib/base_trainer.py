@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from itertools import tee
-from typing import NewType, Optional, Sequence
+from typing import NewType, Optional, Sequence, Tuple, Union
 
 import torch
 
@@ -17,7 +17,8 @@ class BaseTrainer(ABC):
                  model,
                  tasks: Sequence[Task],
                  task_weights: Sequence[int],
-                 main_tname: str,
+                 main_tname: str,  # Main trackable name that's updated every step.
+                 stage_tnames: Optional[Sequence[str]] = None,  # Names to compute the stage.
                  evaluator: Optional = None,
                  check_tname: str = 'check',
                  check_interval: Optional[int] = None,
@@ -33,6 +34,7 @@ class BaseTrainer(ABC):
         self.evaluator = evaluator
 
         self.main_tname = main_tname
+        self.stage_tnames = tuple(stage_tnames or [main_tname])
 
         self.check_tname = check_tname
         self.eval_tname = eval_tname
@@ -61,7 +63,7 @@ class BaseTrainer(ABC):
 
     def train(self, dl_reg: BaseDataLoaderRegistry):
         metrics = Metrics()
-        while not self.tracker.is_finished(self.main_tname):
+        while not self.tracker.is_finished(*self.stage_tnames):
             task = self.tracker.draw_task()
             dl = dl_reg[task]
             step_metrics = self.train_one_step(dl)
@@ -93,8 +95,16 @@ class BaseTrainer(ABC):
 
         self.check(metrics)
 
+    @property
+    def stage(self) -> str:
+        """`stage` is a string representation of which training stage (i.e., step, round) the trainer is currrently in."""
+        ret = list()
+        for tname in self.stage_tnames:
+            ret.append(str(self.tracker[tname].value))
+        return '_'.join(ret)
+
     def check(self, metrics: Metrics):
-        logging.info(metrics.get_table(title=str(self.tracker[self.main_tname])))
+        logging.info(metrics.get_table(title=str(self.stage)))
         metrics.clear()
 
     def try_evaluate(self) -> Optional[Metrics]:
@@ -110,7 +120,7 @@ class BaseTrainer(ABC):
             return self.evaluate()
 
     def evaluate(self):
-        eval_metrics = self.evaluator.evaluate(self.tracker)
+        eval_metrics = self.evaluator.evaluate(self.stage)
         logging.info(eval_metrics.get_table(title='Eval'))
         return eval_metrics
 
