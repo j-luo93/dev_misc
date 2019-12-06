@@ -8,6 +8,7 @@ A Tracker instance is responsible for:
 
 from __future__ import annotations
 
+from typing import Optional
 import random
 from dataclasses import dataclass
 from functools import partial, update_wrapper
@@ -79,11 +80,14 @@ class Tracker:
     def __getitem__(self, name: str):
         return self.trackable_reg[name]
 
-    def update(self, name: str, *, value: Any = None) -> bool:
-        """Update a trackable, and return whether it is updated."""
+    def update(self, name: str, *, value: Optional[Any] = None, threshold: Optional[float] = None) -> bool:
+        """
+        Update a trackable, and return whether it is updated. If `threshold` is provided, even if the trackable is updated,
+        return False when it has not reached the threshold.
+        """
         trackable = self.trackable_reg[name]
         updater = TrackableUpdater(trackable)
-        return updater.update(value=value)
+        return updater.update(value=value, threshold=threshold)
 
     def reset(self, *names: str):
         """Reset trackable(s) specified by name(s)."""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -102,11 +103,17 @@ class MaxTrackable(BaseTrackable):
     def _to_update(self, value: float) -> bool:
         return value > self._value
 
-    def update(self, value: float) -> bool:
+    def _pass_threshold(self, value: float, threshold: float) -> bool:
+        return self._value * (1.0 + threshold) <= value
+
+    def update(self, value: float, threshold: Optional[float] = None) -> bool:
         to_update = self._to_update(value)
+        pass_threshold = True
+        if threshold is not None:
+            pass_threshold = self._pass_threshold(value, threshold)
         if to_update:
             self._value = value
-        return to_update
+        return to_update and pass_threshold
 
     def reset(self):
         self._value = -float('inf')
@@ -116,6 +123,9 @@ class MinTrackable(MaxTrackable):
 
     def _to_update(self, value: float) -> bool:
         return value < self._value
+
+    def _pass_threshold(self, value: float, threshold: float) -> bool:
+        return self._value * (1.0 - threshold) >= value
 
     def reset(self):
         self._value = float('inf')
@@ -167,8 +177,8 @@ class TrackableUpdater:
     def __init__(self, trackable: BaseTrackable):
         self._trackable = trackable
 
-    def update(self, *, value: Any = None):
+    def update(self, *, value: Optional[Any] = None, threshold: Optional[float] = None):
         try:
             return self._trackable.update()
         except TypeError:
-            return self._trackable.update(value)
+            return self._trackable.update(value, threshold=threshold)
