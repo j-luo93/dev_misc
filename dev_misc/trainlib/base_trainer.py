@@ -28,6 +28,7 @@ class BaseTrainer(ABC):
         self.add_trackables()
         self.model = model
         self.optimizer = None
+        self.lr_scheduler = None
         # IDEA(j_luo) Maybe we should just put all evaluation methods as part of trainer?
         self.evaluator = evaluator
 
@@ -53,6 +54,11 @@ class BaseTrainer(ABC):
         total = sum([p.nelement() for p in params_cp1])
         logging.info(f'Found {total} trainable parameters.')
 
+    def set_lr_scheduler(self, scheduler_cls, **kwargs):
+        if self.optimizer is None:
+            raise RuntimeError(f'No optimizer has been set for lr_scheduler.')
+        self.lr_scheduler = scheduler_cls(self.optimizer, **kwargs)
+
     def train(self, dl_reg: BaseDataLoaderRegistry):
         metrics = Metrics()
         while not self.tracker.is_finished(self.main_tname):
@@ -65,6 +71,13 @@ class BaseTrainer(ABC):
             self.try_check(metrics)
             eval_metrics = self.try_evaluate()
             self.try_save(eval_metrics)
+
+            if self.should_terminate():
+                break
+
+    def should_terminate(self) -> bool:
+        """Return whether the training loop should be terminated or not."""
+        return False
 
     @abstractmethod
     def train_one_step(self, dl: BaseDataLoader) -> Metrics:
