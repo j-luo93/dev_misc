@@ -62,13 +62,11 @@ def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
     except TypeError:
         total = None
 
-    cnt = manager.counter(desc=desc, total=total)
+    cnt = manager.counter(desc=desc, total=total, leave=False)
     iterator = iter(iterable)
     for item in iterator:
         yield item
         cnt.update()
-    # FIXME(j_luo) This is not done properly. The old pbar will still be on the screen.
-    cnt.clear()
     cnt.close()
 
 
