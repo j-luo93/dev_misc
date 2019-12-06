@@ -85,10 +85,11 @@ class Tracker:
         updater = TrackableUpdater(trackable)
         return updater.update(value=value)
 
-    def reset(self, name: str):
-        """Reset a trackable."""
-        trackable = self.trackable_reg[name]
-        trackable.reset()
+    def reset(self, *names: str):
+        """Reset trackable(s) specified by name(s)."""
+        for name in names:
+            trackable = self.trackable_reg[name]
+            trackable.reset()
 
     def reset_all(self):
         """Reset all trackables."""
