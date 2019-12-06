@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import inspect
 import warnings
 from functools import wraps
-from typing import Iterable, Iterator, Mapping, Optional
+from typing import ClassVar, Dict, Iterable, Iterator, Mapping, Optional
 
 import enlighten
 
@@ -84,3 +86,44 @@ class WithholdKeys:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._to_track.update(self._withheld)
+
+
+class _GlobalProperty:
+    """The actual class that manages a global property."""
+
+    _instances: ClassVar[Dict[str, _GlobalProperty]] = dict()  # pylint: disable=undefined-variable
+
+    def __new__(cls, name: str):
+        if name in cls._instances:
+            obj = cls._instances[name]
+        else:
+            obj = super().__new__(cls)
+            cls._instances[name] = obj
+        return obj
+
+    def __init__(self, name: str):
+        self.name = name
+        self.value = None
+
+
+class global_property:
+    """A descriptor class that manages how to access or set a _GlobalProperty instance."""
+    # IDEA(j_luo) This can actually be used by arglib.
+
+    def __init__(self, fget, fset=None):
+        self._fget = fget
+        self._g_prop = _GlobalProperty(fget.__name__)
+        self._fset = fset
+
+    def __get__(self, instance, owner=None):
+        if self._g_prop.value is None:
+            raise AttributeError(f'Global property has not been set.')
+        return self._g_prop.value
+
+    def __set__(self, instance, value):
+        if self._fset is None:
+            raise AttributeError(f'No setter function has been supplied.')
+        self._g_prop.value = value
+
+    def setter(self, fset):
+        return type(self)(self._fget, fset=fset)
