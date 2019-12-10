@@ -19,41 +19,6 @@ Tensor = torch.Tensor
 Name = NewType('Name', str)
 
 
-# def _convert_to_typed_value(value: str):
-#     try:
-#         return int(value)
-#     except ValueError:
-#         try:
-#             return float(value)
-#         except ValueError:
-#             return value
-
-
-# class _CommandRunner:
-
-#     _runnables: ClassVar[str, Callable] = dict()
-
-#     def __init__(self, inspector: Inspector):
-#         self._inspector = inspector
-
-#     @classmethod
-#     def runnable(cls, func):
-
-#         name = func.__name__
-#         if name in cls._runnables:
-#             raise NameError(f'A runnable named {name} already exists.')
-#         cls._runnables[name] = func
-
-#     def run(self, input_: str):
-#         cmd, *args = input_.split()
-#         runnable = self._runnables[cmd]
-#         typed_args = [_convert_to_typed_value(arg) for arg in args]
-#         runnable(self._inspector, *typed_args)
-
-
-# _runnable = _CommandRunner.runnable
-
-
 _evalable = set()
 
 
@@ -105,21 +70,19 @@ class Inspector:
         if any(name is None for name in tensor):
             raise ValueError(f'Tensor must be fully named.')
 
-        indices = list()
-        for _name, size in zip(tensor.names, tensor.shape):
-            indices.append(torch.arange(size).long().rename(_name).expand_as(tensor).numpy().reshape(-1))
         arr = tensor.detach().cpu().numpy().reshape(-1)
-        data = indices + [arr]
-        # NOTE(j_luo) For tensors, the name actually corresponds to ids.
-        columns = [_name + '_id' for _name in tensor.names] + [name]
-        df = pd.DataFrame(zip(*data), columns=columns)
+        df = pd.DataFrame(arr, columns=[name])
+        for _name, size in zip(tensor.names, tensor.shape):
+            index = torch.arange(size).long().rename(_name).expand_as(tensor).numpy().reshape(-1)
+            col = _name + '_id'
+            df[col] = index
         return df
 
     def _get_table_from_array(self, arr: NDA, name: Name, dim_names: Optional[Sequence[Name]] = None) -> DF:
+        df = pd.DataFrame(arr, columns=[name])
         if arr.ndim == 1:
             if dim_names is not None:
                 raise TypeError(f'Cannot take dim_names if the table dimenionality is 1.')
-            df = pd.DataFrame(arr, columns=[name])
 
             # For this type of DFs, we need to merge it with any existing table that have matched names.
             for k, t in self._tables.items():
@@ -130,14 +93,11 @@ class Inspector:
         else:
             if dim_names is None or len(dim_names) != arr.ndim - 1:
                 raise TypeError(f'Total number of names do not match.')
-            columns = [name] + list(dim_names)
-            indices = list()
-            for i, size in enumerate(arr.shape):
+            for i, (size, dim_name) in enumerate(zip(arr.shape, dim_names)):
                 tile_shape = arr.shape[:i] + (1,) + arr.shape[i + 1:]
                 reshape_shape = [1] * i + [-1] + [i] * (arr.ndim - i - 1)
-                indices.append(np.tile(np.arange(size, dtype=np.long).reshape(*reshape_shape), *tile_shape))
-            data = indices + [arr]
-            df = pd.DataFrame(zip(*data), columns=columns)
+                index = np.tile(np.arange(size, dtype=np.long).reshape(*reshape_shape), *tile_shape)
+                df[dim_name] = index
         return df
 
     def add_table(self, table: TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None):
@@ -170,7 +130,7 @@ class Inspector:
             df_name, df = self._working_table
             df = df[df[name] == value]
             self._working_table = (df_name, df)
-            print_formatted_text(f'"{name}" == {value} in "{df_name}" table taken.')
+            print_formatted_text(f'"{name}" == {value:!r} in "{df_name}" table taken.')
 
     @_can_eval
     def reset(self):
@@ -180,6 +140,9 @@ class Inspector:
         session = PromptSession()
         while True:
             input_ = session.prompt('>>> What do you want?\n')
+
+            if input_ in ['quit', 'q', 'exit']:
+                break
 
             if not input_.startswith('self'):
                 if self._is_evalable(input_):
@@ -191,7 +154,10 @@ class Inspector:
             try:
                 ret = eval(input_)
                 if ret is not None:
-                    print_formatted_text(ret)
+                    try:
+                        print_formatted_text(ret)
+                    except ValueError:
+                        pass
             except Exception as e:
                 print_formatted_text('>>> Cannot evaluate the prompt.')
                 logging.exception(e)
