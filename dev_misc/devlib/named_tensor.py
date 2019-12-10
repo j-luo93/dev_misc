@@ -254,22 +254,30 @@ class NameHelper:
 
 _Name = Union[str, Tuple[str, str]]
 _Configuration = List[Tuple[_Patchable, List[_Name]]]
+# Directly inherit the names.
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu', 'celu']),
-    (torch, ['zeros_like', 'full_like', 'layer_norm', 'where']),
-    (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__'])
+    (torch, ['zeros_like', 'full_like', 'layer_norm', 'where', 'min']),
+    (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__', 'type_as'])
 ]
+# Increase ref count for None.
 _to_inc_refcount: _Configuration = [
     (torch.Tensor, ['refine_names', 'rename', 'rename_', 'align_to', 'align_as'])
 ]
+# Drop names altogether.
 _to_drop: _Configuration = [
     (torch.nn.Module, [('state_dict', 'module_state_dict')]),
     (torch.optim.Optimizer, [('state_dict', 'optimizer_state_dict')])
 ]
+# Enhance the original api for reduction ops so that `dim` can be a name.
+_to_reduce: _Configuration = [
+    (torch.Tensor, ['any'])
+]
 _all_to_patch: Dict[str, _Configuration] = {
     'inherit': _to_inherit,
     'inc_refcount': _to_inc_refcount,
-    'drop': _to_drop
+    'drop': _to_drop,
+    'reduce': _to_reduce
 }
 
 
@@ -304,6 +312,19 @@ def _gen_function(patchable: _Patchable, name: str, action: str, caller_name: st
             with NoName(*args, **kwargs):
                 ret = call_unpatched(*args, caller_name=caller_name, **kwargs)
             return drop_names(ret)
+
+    elif action == 'reduce':
+
+        @wraps(old_func)
+        def wrapped(tensor: Tensor, dim: Union[int, str], *args, **kwargs):
+            names = tensor.names
+            if isinstance(dim, str):
+                dim = names.index(dim)
+            new_names = names[:dim] + names[dim + 1:]
+            with NoName(tensor, *args, **kwargs):
+                ret = call_unpatched(tensor, dim, *args, caller_name=caller_name, **kwargs)
+            ret.rename_(*new_names)
+            return ret
 
     return wrapped
 
@@ -497,6 +518,7 @@ def topk(tensor: FT, k: int, dim: Dim = -1, *args, **kwargs):
         with NoName(tensor):
             values, indices = call_unpatched(tensor, k, dim=dim_int, *args, **kwargs)
         values.rename_(*tensor.names)
+        # FIXME(j_luo) If each name is associated with a fixed value, then inheriting the name is wrong.
         indices.rename_(*tensor.names)
         return values, indices
 

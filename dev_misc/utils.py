@@ -118,7 +118,8 @@ class global_property:
 
     def __get__(self, instance, owner=None):
         if self._g_prop.value is None:
-            raise AttributeError(f'Global property has not been set.')
+            # NOTE(j_luo) Use ValueError so that this exception is part of the traceback when __getattr__ is supplied.
+            raise ValueError(f'Global property has not been set.')
         return self._g_prop.value
 
     def __set__(self, instance, value):
