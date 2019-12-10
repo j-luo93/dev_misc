@@ -40,10 +40,12 @@ _TableLike = Union[Tensor, List, Tuple, np.ndarray]
 class NamedDataFrame(pd.DataFrame):
     "Based on https://github.com/pandas-dev/pandas/issues/2485#issuecomment-174577149."
 
-    _metadata = ['tname']  # Stands for table name.
+    _metadata = ['tname', 'auto_merge']  # `tname` stands for table name.
 
-    def __init__(self, *args, tname: Optional[Name] = None, **kwargs):
+    def __init__(self, *args, tname: Optional[Name] = None, auto_merge: bool = True, **kwargs):
+        """If `auto_merge` is True, then the inspector will attempt to merge it with any newly created index tables."""
         self.tname = tname
+        self.auto_merge = auto_merge
         super().__init__(*args, **kwargs)
 
     @property
@@ -84,58 +86,57 @@ class Inspector:
     def history(self):
         return self._cmd_history
 
-    def _get_table_from_tensor(self, tensor: Tensor, name: Name) -> NamedDataFrame:
-        if any(name is None for name in tensor):
-            raise ValueError(f'Tensor must be fully named.')
+    def add_table(self, table: _TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None, auto_merge: bool = True, is_index: bool = False):
+        """Add a table to the inspector.
 
-        arr = tensor.detach().cpu().numpy().reshape(-1)
-        df = NamedDataFrame(arr, columns=[name], tname=name)
-        for _name, size in zip(tensor.names, tensor.shape):
-            index = torch.arange(size).long().rename(_name).expand_as(tensor).numpy().reshape(-1)
-            col = _name + '_id'
-            df[col] = index
-        return df
-
-    def _get_table_from_array(self, arr: NDA, name: Name, dim_names: Optional[Sequence[Name]] = None) -> DF:
-        df = NamedDataFrame(arr, columns=[name], tname=name)
-        if arr.ndim == 1:
+        If `is_index` is True, we need to call `set_index` on the filled-in index values.
+        """
+        # Check duplicate.
+        if name in self._tables:
+            raise NameError(f'A table named {name} exists already.')
+        # Check names and convert to np.ndarray.
+        if torch.is_tensor(table):
             if dim_names is not None:
-                raise TypeError(f'Cannot take dim_names if the table dimenionality is 1.')
+                raise TypeError(f'Name the tensor directly instead of passing dim_names.')
+            if any(name is None for name in table):
+                raise ValueError(f'Tensor must be fully named.')
+            arr = table.detach().cpu().numpy()
+            dim_names = list(table.names)
+        elif isinstance(table, (list, tuple)):
+            arr = np.asarray(table)
+        if arr.ndim == 1:
+            # 1d arrays provide a natural name for the index column.
+            dim_names = [name]
+        else:
+            dim_names = dim_names or list()
+        if len(dim_names) != arr.ndim:
+            raise TypeError(f'Total number of names do not match.')
 
-            # For this type of DFs, we need to merge it with any existing table that have matched names.
+        # Fill in all the indices.
+        df = NamedDataFrame(arr.reshape(-1), columns=[name], tname=name, auto_merge=auto_merge)
+        for i, (size, dim_name) in enumerate(zip(arr.shape, dim_names)):
+            dim_name = dim_name + '_id'
+            tile_shape = arr.shape[:i] + (1,) + arr.shape[i + 1:]
+            reshape_shape = [1] * i + [-1] + [1] * (arr.ndim - i - 1)
+            index = np.tile(np.arange(size, dtype=np.long).reshape(*reshape_shape), tile_shape)
+            df[dim_name] = index.reshape(-1)
+
+        # Set index if needed.
+        if is_index:
+            df.set_index([_name + '_id' for _name in dim_names], inplace=True, verify_integrity=True)
+            logging.info(f'Index set for table {name!r}.')
+
             for k, t in self._tables.items():
                 id_name = name + '_id'
-                if id_name in t.columns:
+                if id_name in t.columns and t.auto_merge:
                     logging.info(f'Merging {name!r} table with {t.tname!r} table.')
                     # NOTE(j_luo) Merge will not perserve `tname`. Have to add it manually.
                     new_t = t.merge(df, right_index=True, left_on=id_name)
                     new_t.tname = df.tname
                     self._tables[k] = new_t
                     logging.info(f'{name!r} table with {t.tname!r} table merged.')
-        else:
-            if dim_names is None or len(dim_names) != arr.ndim - 1:
-                raise TypeError(f'Total number of names do not match.')
-            for i, (size, dim_name) in enumerate(zip(arr.shape, dim_names)):
-                tile_shape = arr.shape[:i] + (1,) + arr.shape[i + 1:]
-                reshape_shape = [1] * i + [-1] + [i] * (arr.ndim - i - 1)
-                index = np.tile(np.arange(size, dtype=np.long).reshape(*reshape_shape), *tile_shape)
-                df[dim_name] = index
-        return df
 
-    def add_table(self, table: _TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None):
-        if name in self._tables:
-            raise NameError(f'A table named {name} exists already.')
-        logging.info(f'Adding {name!r} table.')
-        if torch.is_tensor(table):
-            if dim_names is not None:
-                raise TypeError(f'Name the tensor directly instead of passing dim_names.')
-            table = self._get_table_from_tensor(table, name)
-        else:
-            if isinstance(table, (list, tuple)):
-                table = np.asarray(table)
-            table = self._get_table_from_array(table, name, dim_names=dim_names)
-
-        self._tables[name] = table
+        self._tables[name] = df
         logging.info(f'{name!r} table added.')
 
     def _add_to_history(self):
