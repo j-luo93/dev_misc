@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from inspect import isfunction, currentframe
 import logging
 from functools import wraps
 from typing import (Callable, ClassVar, Dict, List, NewType, Optional,
@@ -55,6 +56,12 @@ class NamedDataFrame(pd.DataFrame):
     def _combine_const(self, other, *args, **kwargs):
         return super()._combine_const(other, *args, **kwargs).__finalize__(self)
 
+    def merge(self, other, *args, **kwargs) -> NamedDataFrame:
+        """Override merge method so that tname can be inherited."""
+        ret = super().merge(other, *args, **kwargs)
+        ret.tname = self.tname
+        return ret
+
 
 class Inspector:
 
@@ -86,10 +93,11 @@ class Inspector:
     def history(self):
         return self._cmd_history
 
-    def add_table(self, table: _TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None, auto_merge: bool = True, is_index: bool = False):
+    def add_table(self, table: _TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None, auto_merge: bool = True, is_index: bool = False, is_mask_index: bool = False):
         """Add a table to the inspector.
 
         If `is_index` is True, we need to call `set_index` on the filled-in index values.
+        If `is_mask_index` is True, we need to construct ids only on the True values. If True, this would be used instead of `is_index`.
         """
         # Check duplicate.
         if name in self._tables:
@@ -122,17 +130,19 @@ class Inspector:
             df[dim_name] = index.reshape(-1)
 
         # Set index if needed.
-        if is_index:
-            df.set_index([_name + '_id' for _name in dim_names], inplace=True, verify_integrity=True)
+        if is_mask_index or is_index:
+            if is_mask_index:
+                df = df[df[name]]
+                df.reset_index(drop=True, inplace=True)
+            else:
+                df.set_index([_name + '_id' for _name in dim_names], inplace=True, verify_integrity=True)
             logging.info(f'Index set for table {name!r}.')
 
             for k, t in self._tables.items():
                 id_name = name + '_id'
                 if id_name in t.columns and t.auto_merge:
                     logging.info(f'Merging {name!r} table with {t.tname!r} table.')
-                    # NOTE(j_luo) Merge will not perserve `tname`. Have to add it manually.
-                    new_t = t.merge(df, right_index=True, left_on=id_name)
-                    new_t.tname = df.tname
+                    new_t = t.merge(df, how='left', right_index=True, left_on=id_name)
                     self._tables[k] = new_t
                     logging.info(f'{name!r} table with {t.tname!r} table merged.')
 
@@ -212,9 +222,29 @@ class Inspector:
             print_formatted_text(f'{t.tname.upper():}')
             print_formatted_text(t.describe())
 
+    @_can_eval
+    def merge(self, table: Union[table, Name], *args, **kwargs):
+        if isinstance(table, str):
+            table = self._tables[table]
+        self._working_table = self._working_table.merge(table, *args, **kwargs)
+        return self._working_table
+
+    @_can_eval
+    def pivot(self, *args, **kwargs):
+        self._working_table = self._working_table.pivot(*args, **kwargs)
+        return self._working_table
+
+    @_can_eval
+    def narrow(self, names: Sequence[Name]):
+        self._working_table = self._working_table[names]
+        return self._working_table
+
     def run(self):
         session = PromptSession()
-        wt: NamedDataFrame = None  # Stands for working table.
+        # Inject some useful variable into the local namespace.
+        wt = self._working_table
+        for tname, table in self._tables.items():
+            locals()[tname] = table
         while True:
             raw_input_ = session.prompt('>>> What do you want?\n')
 
@@ -225,17 +255,15 @@ class Inspector:
             if not raw_input_.startswith('self'):
                 if self._is_evalable(raw_input_):
                     input_ = 'self.' + raw_input_
-                    # NOTE(j_luo) Automatically add parentheses so that it can be called.
-                    if '(' not in input_ and ')' not in input_:
-                        input_ += '()'
 
             try:
                 ret = eval(input_)
+                # NOTE(j_luo) Call again if the return is a function.
+                if isfunction(ret):
+                    input_ += '()'
+                    ret = eval(input_)
                 if ret is not None:
-                    try:
-                        print_formatted_text(ret)
-                    except ValueError:
-                        pass
+                    print(ret)
             except Exception as e:
                 print_formatted_text(f'>>> Cannot evaluate the expression {input_}.')
                 logging.exception(e)
