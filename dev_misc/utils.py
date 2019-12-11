@@ -126,6 +126,7 @@ class global_property:
         if self._fset is None:
             raise AttributeError(f'No setter function has been supplied.')
         self._g_prop.value = value
+        self._fset(instance, value)
 
     def setter(self, fset):
         return type(self)(self._fget, fset=fset)

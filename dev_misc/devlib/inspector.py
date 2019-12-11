@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from inspect import isfunction, currentframe
 import logging
 from functools import wraps
+from inspect import currentframe, isfunction
 from typing import (Callable, ClassVar, Dict, List, NewType, Optional,
                     Sequence, Tuple, Union)
 
@@ -93,15 +93,18 @@ class Inspector:
     def history(self):
         return self._cmd_history
 
+    def _check_duplicate_name(self, name: Name):
+        # Check duplicate.
+        if name in self._tables:
+            raise NameError(f'A table named {name} exists already.')
+
     def add_table(self, table: _TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None, auto_merge: bool = True, is_index: bool = False, is_mask_index: bool = False):
         """Add a table to the inspector.
 
         If `is_index` is True, we need to call `set_index` on the filled-in index values.
         If `is_mask_index` is True, we need to construct ids only on the True values. If True, this would be used instead of `is_index`.
         """
-        # Check duplicate.
-        if name in self._tables:
-            raise NameError(f'A table named {name} exists already.')
+        self._check_duplicate_name(name)
         # Check names and convert to np.ndarray.
         if torch.is_tensor(table):
             if dim_names is not None:
@@ -145,8 +148,10 @@ class Inspector:
                     new_t = t.merge(df, how='left', right_index=True, left_on=id_name)
                     self._tables[k] = new_t
                     logging.info(f'{name!r} table with {t.tname!r} table merged.')
+        self._save_table(name, df)
 
-        self._tables[name] = df
+    def _save_table(self, name: name, data: NamedDataFrame):
+        self._tables[name] = data
         logging.info(f'{name!r} table added.')
 
     def _add_to_history(self):
@@ -238,6 +243,12 @@ class Inspector:
     def narrow(self, names: Sequence[Name]):
         self._working_table = self._working_table[names]
         return self._working_table
+
+    @_can_eval
+    def save_as(self, name: Name):
+        """Save the working table as another table in the `_tables` dict."""
+        self._check_duplicate_name(name)
+        self._save_table(name, self._working_table)
 
     def run(self):
         session = PromptSession()
