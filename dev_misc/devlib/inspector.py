@@ -98,6 +98,12 @@ class Inspector:
         if name in self._tables:
             raise NameError(f'A table named {name} exists already.')
 
+    def __getitem__(self, name: Name) -> NamedDataFrame:
+        return self._tables[name]
+
+    def __delitem__(self, name: name):
+        del self._tables[name]
+
     def add_table(self, table: _TableLike, name: Name, dim_names: Optional[Sequence[Name]] = None, auto_merge: bool = True, is_index: bool = False, is_mask_index: bool = False):
         """Add a table to the inspector.
 
@@ -106,10 +112,11 @@ class Inspector:
         """
         self._check_duplicate_name(name)
         # Check names and convert to np.ndarray.
+        arr = table
         if torch.is_tensor(table):
             if dim_names is not None:
                 raise TypeError(f'Name the tensor directly instead of passing dim_names.')
-            if any(name is None for name in table):
+            if any(name is None for name in table.names):
                 raise ValueError(f'Tensor must be fully named.')
             arr = table.detach().cpu().numpy()
             dim_names = list(table.names)

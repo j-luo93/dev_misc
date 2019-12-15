@@ -316,14 +316,18 @@ def _gen_function(patchable: _Patchable, name: str, action: str, caller_name: st
     elif action == 'reduce':
 
         @wraps(old_func)
-        def wrapped(tensor: Tensor, dim: Union[int, str], *args, **kwargs):
-            names = tensor.names
-            if isinstance(dim, str):
-                dim = names.index(dim)
-            new_names = names[:dim] + names[dim + 1:]
-            with NoName(tensor, *args, **kwargs):
-                ret = call_unpatched(tensor, dim, *args, caller_name=caller_name, **kwargs)
-            ret.rename_(*new_names)
+        def wrapped(tensor: Tensor, dim: Union[int, str] = None, *args, **kwargs):
+            if dim is not None:
+                names = tensor.names
+                if isinstance(dim, str):
+                    dim = names.index(dim)
+                new_names = names[:dim] + names[dim + 1:]
+                with NoName(tensor, *args, **kwargs):
+                    ret = call_unpatched(tensor, dim, *args, caller_name=caller_name, **kwargs)
+                ret.rename_(*new_names)
+            else:
+                with NoName(tensor, *args, **kwargs):
+                    ret = call_unpatched(tensor, *args, caller_name=caller_name, **kwargs)
             return ret
 
     return wrapped

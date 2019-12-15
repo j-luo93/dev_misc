@@ -23,7 +23,9 @@ class BaseTrainer(ABC):
                  check_tname: str = 'check',
                  check_interval: Optional[int] = None,
                  eval_tname: str = 'eval',
-                 eval_interval: Optional[int] = None):
+                 eval_interval: Optional[int] = None,
+                 save_tname: str = 'save_tname',
+                 save_interval: Optional[int] = None):
         self.tracker = Tracker()
         self.tracker.add_tasks(tasks, task_weights)
         self.add_trackables()
@@ -36,14 +38,18 @@ class BaseTrainer(ABC):
         self.main_tname = main_tname
         self.stage_tnames = tuple(stage_tnames or [main_tname])
 
-        self.check_tname = check_tname
-        self.eval_tname = eval_tname
         self.check_interval = check_interval
         self.eval_interval = eval_interval
+        self.save_interval = save_interval or eval_interval
         if check_interval:
             self.tracker.add_trackable(check_tname, total=check_interval, endless=True)
+            self.check_tname = check_tname
         if eval_interval:
             self.tracker.add_trackable(eval_tname, total=eval_interval, endless=True)
+            self.eval_tname = eval_tname
+        if save_interval:
+            self.tracker.add_trackable(save_tname, total=save_interval, endless=True)
+            self.save_tname = save_tname
 
     @abstractmethod
     def add_trackables(self, *args, **kwargs):
@@ -125,12 +131,17 @@ class BaseTrainer(ABC):
         return eval_metrics
 
     def try_save(self, eval_metrics: Optional[Metrics]):
-        if not eval_metrics:
+        if not self.save_interval:
             return
 
-        self.model.eval()
-        with torch.no_grad():
+        self.tracker.update(self.save_tname)
+        if not self.tracker.is_finished(self.save_tname):
+            return
+
+        if eval_metrics is None:
+            self.save()
+        else:
             self.save(eval_metrics)
 
     @abstractmethod
-    def save(self, eval_metrics: Metrics): ...
+    def save(self, eval_metrics: Optional[Metrics] = None): ...
