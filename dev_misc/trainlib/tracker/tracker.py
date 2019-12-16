@@ -8,11 +8,10 @@ A Tracker instance is responsible for:
 
 from __future__ import annotations
 
-from typing import Optional
 import random
 from dataclasses import dataclass
 from functools import partial, update_wrapper
-from typing import Any, ClassVar, Dict, List, Sequence, Type
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Type
 
 from dev_misc.utils import deprecated
 
@@ -78,8 +77,11 @@ class Tracker:
         except KeyError:
             raise AttributeError(f'No trackable named {attr}.')
 
-    def __getitem__(self, name: str):
+    def __getitem__(self, name: str) -> BaseTrackable:
         return self.trackable_reg[name]
+
+    def __contains__(self, name: str) -> bool:
+        return name in self.trackable_reg
 
     def update(self, name: str, *, value: Optional[Any] = None, threshold: Optional[float] = None) -> bool:
         """

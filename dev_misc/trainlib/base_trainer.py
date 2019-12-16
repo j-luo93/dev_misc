@@ -1,7 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
+from dataclasses import dataclass
 from itertools import tee
-from typing import NewType, Optional, Sequence, Tuple, Union
+from typing import (Callable, Dict, List, NewType, Optional, Sequence, Tuple,
+                    Union)
 
 import torch
 
@@ -9,6 +12,12 @@ from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
 from .tracker.tracker import Task, Tracker
 from .trainer import get_trainable_params
+
+
+@dataclass
+class Callback:
+    interval: int
+    func: Callable
 
 
 class BaseTrainer(ABC):
@@ -24,7 +33,7 @@ class BaseTrainer(ABC):
                  check_interval: Optional[int] = None,
                  eval_tname: str = 'eval',
                  eval_interval: Optional[int] = None,
-                 save_tname: str = 'save_tname',
+                 save_tname: str = 'save',
                  save_interval: Optional[int] = None):
         self.tracker = Tracker()
         self.tracker.add_tasks(tasks, task_weights)
@@ -41,19 +50,34 @@ class BaseTrainer(ABC):
         self.check_interval = check_interval
         self.eval_interval = eval_interval
         self.save_interval = save_interval or eval_interval
-        if check_interval:
-            self.tracker.add_trackable(check_tname, total=check_interval, endless=True)
+        if self.check_interval:
+            self.tracker.add_trackable(check_tname, total=self.check_interval, endless=True)
             self.check_tname = check_tname
-        if eval_interval:
-            self.tracker.add_trackable(eval_tname, total=eval_interval, endless=True)
+        if self.eval_interval:
+            self.tracker.add_trackable(eval_tname, total=self.eval_interval, endless=True)
             self.eval_tname = eval_tname
-        if save_interval:
-            self.tracker.add_trackable(save_tname, total=save_interval, endless=True)
+        if self.save_interval:
+            self.tracker.add_trackable(save_tname, total=self.save_interval, endless=True)
             self.save_tname = save_tname
+        self._callbacks: Dict[str, List[Callback]] = defaultdict(list)
 
     @abstractmethod
     def add_trackables(self, *args, **kwargs):
         """Add all trackables. `self.tracker` should be called here."""
+
+    def add_callback(self, tname: str, interval: int, callback: Callable):
+        # IDEA(j_luo) Rewrite check/eval/save functions using this method.
+        if not tname in self.tracker:
+            raise NameError(f'No trackable named {tname}.')
+
+        self._callbacks[tname].append(Callback(interval, callback))
+
+    def update(self, tname: str):
+        """This does two things: call tracker and update a trackable, call registered callbacks."""
+        self.tracker.update(tname)
+        for callback in self._callbacks[tname]:
+            if self.tracker[tname].value % callback.interval == 0:
+                callback.func()
 
     def set_optimizer(self, optimizer_cls, **kwargs):
         params_cp0, params_cp1 = tee(get_trainable_params(self.model, named=False))
@@ -75,7 +99,7 @@ class BaseTrainer(ABC):
             step_metrics = self.train_one_step(dl)
             metrics += step_metrics
 
-            self.tracker.update(self.main_tname)
+            self.update(self.main_tname)
             self.try_check(metrics)
             eval_metrics = self.try_evaluate()
             self.try_save(eval_metrics)
@@ -95,7 +119,7 @@ class BaseTrainer(ABC):
         if not self.check_interval:
             return
 
-        self.tracker.update(self.check_tname)
+        self.update(self.check_tname)
         if not self.tracker.is_finished(self.check_tname):
             return
 
@@ -117,7 +141,7 @@ class BaseTrainer(ABC):
         if not self.eval_interval or self.evaluator is None:
             return
 
-        self.tracker.update(self.eval_tname)
+        self.update(self.eval_tname)
         if not self.tracker.is_finished(self.eval_tname):
             return
 
@@ -134,7 +158,7 @@ class BaseTrainer(ABC):
         if not self.save_interval:
             return
 
-        self.tracker.update(self.save_tname)
+        self.update(self.save_tname)
         if not self.tracker.is_finished(self.save_tname):
             return
 

@@ -146,6 +146,9 @@ class TrackableRegistry:
     def __getitem__(self, name: str) -> BaseTrackable:
         return self._instances[name]
 
+    def __contains__(self, name: str) -> bool:
+        return name in self._instances
+
     def __len__(self):
         return len(self._instances)
 
