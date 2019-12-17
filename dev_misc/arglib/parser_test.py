@@ -1,14 +1,14 @@
 import sys
+import unittest.mock as mock
 from copy import deepcopy
 from unittest import TestCase
-import unittest.mock as mock
 
 from .argument import ChoiceNotAllowed, MismatchedNArgs
 from .parser import (DuplicateArgument, DuplicateRegistry, MatchNotFound,
                      MultipleMatches, MustForceSetArgument,
                      OverlappingRegistries, ReservedNameError, add_argument,
-                     add_registry, g, get_configs, init_g_attr, parse_args,
-                     reset_repo, set_argument)
+                     add_condition, add_registry, g, get_configs, init_g_attr,
+                     parse_args, reset_repo, set_argument)
 from .registry import Registry
 
 
@@ -344,3 +344,12 @@ class TestParser(TestCase):
             _parse('--second 1 4')
         _parse('--second 1 3')
         self.assertTupleEqual(g.second, (1, 3))
+
+    def check_condition(self):
+        add_argument('first', default='a')
+        add_argument('second', default='b')
+        add_condition('first', 'a', 'second', 'b')
+        _parse('--second b')
+        _parse('--first b')
+        with self.assertRaises(ValueError):
+            _parse('--second c')

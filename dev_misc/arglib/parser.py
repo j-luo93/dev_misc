@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import wraps
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, no_type_check_decorator
+from typing import Any, Callable, Dict, List, no_type_check_decorator
 
 from pytrie import SortedStringTrie
 
@@ -73,11 +73,26 @@ def _get_scope(scope=None, stacklevel=1):
 
 
 def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg='', choices=None, scope=None, stacklevel=1):
-    """When stacklevel == 1, the scope will be computed based on the caller of `add_argument`."""
+    """When `stacklevel` != 1, the scope will be computed based on the caller of `add_argument`."""
     scope = _get_scope(scope, stacklevel=1 + stacklevel)
 
     repo = _Repository()
     repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
+
+
+@dataclass
+class _Condition:
+    conditioner: str
+    conditioner_value: Any
+    conditionee: str
+    conditionee_value: Any
+
+
+def add_condition(conditioner: str, conditionee: str, conditioner_value: Any, conditionee_value: Any):
+    """Add a condition between `conditioner` and `conditionee`."""
+    repo = _Repository()
+    condition = _Condition(conditioner, conditionee, conditioner_value, conditionee_value)
+    repo.add_condition(condition)
 
 
 def set_argument(name, value, *, _force=False):
@@ -147,6 +162,7 @@ class _Repository:
     _shared_state = dict()
     _arg_trie = SortedStringTrie()
     _registries = dict()
+    _conditions: List[_Condition] = list()
 
     @classmethod
     def reset(cls):
@@ -161,6 +177,7 @@ class _Repository:
         if scope is None:
             raise ArgumentScopeNotSupplied('You have to explicitly set scope to a value.')
 
+        # TODO(j_luo) Implement aliases.
         arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
         if arg.name in self.__dict__:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
@@ -171,6 +188,9 @@ class _Repository:
         if dtype == bool:
             self._arg_trie[f'no_{arg.name}'] = arg
         return arg
+
+    def add_condition(self, condition: _Condition):
+        self._conditions.append(condition)
 
     def set_argument(self, name, value, *, _force=False):
         if not _force:
@@ -196,7 +216,7 @@ class _Repository:
     def get_view(self):
         return _RepositoryView(self._shared_state)
 
-    def _get_argument_by_string(self, name, source='CLI'):
+    def _get_argument_by_string(self, name, source=None) -> Argument:
         args = self._arg_trie.values(prefix=name)
         if len(args) > 1:
             found_names = [f'"{arg.name}"' for arg in args]
@@ -257,6 +277,12 @@ class _Repository:
         for arg, new_value in parsed:
             if arg.name not in self._registries:
                 arg.value = new_value
+        # Check conditions.
+        for condition in self._conditions:
+            conditioner_arg = self._get_argument_by_string(condition.conditioner)
+            conditionee_arg = self._get_argument_by_string(condition.conditionee)
+            if conditionee_arg.value == condition.conditioner_value and conditionee_arg.value != condition.conditionee_value:
+                raise ValueError(f'Condition not satisfied for {condition.conditioner} and {condition.conditionee}.')
         return g
 
 

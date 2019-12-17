@@ -162,10 +162,7 @@ class BaseTrainer(ABC):
         if not self.tracker.is_finished(self.save_tname):
             return
 
-        if eval_metrics is None:
-            self.save()
-        else:
-            self.save(eval_metrics)
+        self.save(eval_metrics)
 
     @abstractmethod
-    def save(self, eval_metrics: Optional[Metrics] = None): ...
+    def save(self, eval_metrics: Metrics): ...
