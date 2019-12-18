@@ -1,16 +1,17 @@
-import re
 import logging
 import os
+import re
 import warnings
 from copy import deepcopy
 from dataclasses import dataclass, fields
 from functools import partial, update_wrapper, wraps
 from typing import Any, List, Sequence, Type, TypeVar, Union
-from dev_misc.trainlib import has_gpus
 
 import numpy as np
 import torch
 import torch.nn as nn
+
+from dev_misc.trainlib import has_gpus
 
 # import devlib.named_tensor as named_tensor
 
@@ -124,8 +125,11 @@ def dataclass_size_repr(self):
         anno = field.type
         value = getattr(self, attr)
         if value is not None and (_is_np_type(anno) or _is_tensor_type(anno)):
-            shape = tuple(value.shape)
-            out.append(f'{attr}: {shape}')
+            try:
+                shape = tuple(value.shape)
+                out.append(f'{attr}: {shape}')
+            except AttributeError:
+                out.append(f'{attr}: {anno}')
         else:
             out.append(f'{attr}={value!r}')
     cls = type(self)

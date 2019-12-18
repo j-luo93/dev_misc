@@ -265,6 +265,7 @@ class _Repository:
                 arg.value = new_value
                 reg = self._registries[arg.name]
                 cfg_cls = reg[arg.value]
+                # TODO(j_luo) Use fields instead of vars.
                 cfg = vars(cfg_cls())
                 for cfg_name, cfg_value in cfg.items():
                     cfg_arg = self._get_argument_by_string(cfg_name, source=cfg_cls.__name__)
