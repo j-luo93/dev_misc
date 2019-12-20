@@ -130,3 +130,18 @@ class global_property:
 
     def setter(self, fset):
         return type(self)(self._fget, fset=fset)
+
+
+class SingletonMetaclass(type):
+    """Copied from https://stackoverflow.com/questions/6760685/creating-a-singleton-in-python."""
+
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class Singleton(metaclass=SingletonMetaclass):
+    """A Singleton class that can be directly subclassed."""
