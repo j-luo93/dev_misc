@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import inspect
 import warnings
-from functools import wraps
+from functools import reduce, wraps
+from operator import iadd
 from typing import ClassVar, Dict, Iterable, Iterator, Mapping, Optional
 
 import enlighten
@@ -145,3 +146,7 @@ class SingletonMetaclass(type):
 
 class Singleton(metaclass=SingletonMetaclass):
     """A Singleton class that can be directly subclassed."""
+
+
+def concat_lists(list_of_lists: List[list]) -> List:
+    return reduce(iadd, list_of_lists, list())
