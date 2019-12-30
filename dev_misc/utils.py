@@ -9,8 +9,8 @@ from typing import ClassVar, Dict, Iterable, Iterator, Mapping, Optional
 import enlighten
 
 
-def check_explicit_arg(value):
-    if value is None:
+def check_explicit_arg(*values):
+    if any(value is None for value in values):
         raise ValueError('Must explicitly pass a non-None value.')
 
 

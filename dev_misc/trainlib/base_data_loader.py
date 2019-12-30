@@ -1,18 +1,24 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, Iterator
 
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.dataloader import default_collate
 
 from .tracker.tracker import Task
 
-from typing import Iterator
-
 
 class BaseDataLoader(ABC, DataLoader):
+    """Base class for DataLoader.
+
+    Note that `collate_fn` can be specified through two means. Through a keyward argument in the constructor, or by explicitly specifying a class attribute named `collate_fn`. The former overrides the latter.
+    """
+    collate_fn = default_collate
 
     def __init__(self, dataset: Dataset, task: Task, **kwargs):
         self.task = task
         self._iterator: Iterator = None
+        if 'collate_fn' not in kwargs:
+            kwargs['collate_fn'] = type(self).collate_fn
         super().__init__(dataset, **kwargs)
 
     def get_next_batch(self):

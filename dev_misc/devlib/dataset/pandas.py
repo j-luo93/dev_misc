@@ -7,8 +7,10 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from dev_misc.devlib.helper import get_tensor, pad_to_dense
+from dev_misc.utils import deprecated
 
 
+@deprecated
 class PandasDataset(Dataset):
 
     def __init__(self, data: pd.DataFrame, columns: List[str] = None):
@@ -45,6 +47,7 @@ def pandas_collate_fn(batch: List[pd.Series]) -> pd.DataFrame:
     return pd.concat(batch, axis=1).T
 
 
+@deprecated
 class PandasDataLoader(DataLoader):
 
     def __init__(self, data, columns: List[str] = None, collate_fn: Callable[[List[pd.Series]], Any] = None, **kwargs):
