@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Dict, Iterator
 
 from torch.utils.data import DataLoader, Dataset
@@ -14,12 +17,12 @@ class BaseDataLoader(ABC, DataLoader):
     """
     collate_fn = default_collate
 
-    def __init__(self, dataset: Dataset, task: Task, **kwargs):
+    def __init__(self, dataset: Dataset, task: Task, *args, **kwargs):
         self.task = task
         self._iterator: Iterator = None
         if 'collate_fn' not in kwargs:
             kwargs['collate_fn'] = type(self).collate_fn
-        super().__init__(dataset, **kwargs)
+        super().__init__(dataset, *args, **kwargs)
 
     def get_next_batch(self):
         try:
