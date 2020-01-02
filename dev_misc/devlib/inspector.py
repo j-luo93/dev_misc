@@ -143,7 +143,8 @@ class Inspector:
         if is_mask_index or is_index:
             if is_mask_index:
                 df = df[df[name]]
-                df.reset_index(drop=True, inplace=True)
+                df = df.reset_index(drop=True).drop(columns=name)
+                df.index.rename(f'{name}_id', inplace=True)
             else:
                 df.set_index([_name + '_id' for _name in dim_names], inplace=True, verify_integrity=True)
             logging.info(f'Index set for table {name!r}.')
