@@ -20,7 +20,8 @@ def cache(full=True, persist=False):
 
             bound = func_sig.bind(self, *args, **kwargs)
             bound.apply_defaults()
-            arg_key = frozenset(bound.arguments.items())
+            items = [(k, v) for k, v in bound.arguments.items() if not isinstance(v, dict)]
+            arg_key = frozenset(items)
             if full:
                 key = (id(self), func.__name__, arg_key)
             else:
