@@ -3,8 +3,8 @@ from __future__ import annotations
 import inspect
 import warnings
 from functools import reduce, wraps
-from operator import iadd
-from typing import ClassVar, Dict, Iterable, Iterator, Mapping, Optional
+from operator import iadd, ior
+from typing import ClassVar, Dict, Iterable, Iterator, List, Mapping, Optional
 
 import enlighten
 
@@ -148,5 +148,9 @@ class Singleton(metaclass=SingletonMetaclass):
     """A Singleton class that can be directly subclassed."""
 
 
-def concat_lists(list_of_lists: List[list]) -> List:
+def concat_lists(list_of_lists: List[list]) -> list:
     return reduce(iadd, list_of_lists, list())
+
+
+def union_sets(list_of_sets: List[set]) -> set:
+    return reduce(ior, list_of_sets, set())
