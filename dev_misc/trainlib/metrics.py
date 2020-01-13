@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
+from typing import Iterator
 
 import numpy as np
 import torch
 from prettytable import PrettyTable as pt
-
 from typing_extensions import Protocol
 
 # TODO(j_luo) Rename this to Stats maybe?
@@ -199,3 +199,6 @@ class Metrics:
     def with_prefix_(self, prefix: SupportsStr) -> Metrics:
         metrics = [metric.with_prefix_(prefix) for metric in self._metrics.values()]
         return Metrics(*metrics)
+
+    def __iter__(self) -> Iterator[Metric]:
+        yield from self._metrics.values()
