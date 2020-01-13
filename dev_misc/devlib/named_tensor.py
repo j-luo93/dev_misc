@@ -224,6 +224,9 @@ class NameHelper:
     def __init__(self):
         self._reg = dict()
 
+    def register_tensor(self, tensor: torch.Tensor):
+        self._register_names(tensor)
+
     def _register_names(self, tensor: torch.Tensor):
         for size, name in zip(tensor.shape, tensor.names):
             if name is not None:
@@ -257,7 +260,7 @@ _Configuration = List[Tuple[_Patchable, List[_Name]]]
 # Directly inherit the names.
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu', 'celu']),
-    (torch, ['zeros_like', 'full_like', 'layer_norm', 'where', 'min']),
+    (torch, ['zeros_like', 'full_like', 'layer_norm', 'where', 'min', 'max']),
     (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__', 'type_as'])
 ]
 # Increase ref count for None.
