@@ -3,7 +3,7 @@ import os
 import re
 import warnings
 from copy import deepcopy
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, is_dataclass
 from functools import partial, update_wrapper, wraps
 from typing import Any, List, Sequence, Type, TypeVar, Union
 
@@ -156,13 +156,18 @@ def dataclass_cuda(self: T) -> T:
 
 def dataclass_numpy(self: T) -> T:
     """Convert tensors to numpy arrays if possible. This is out-of-place."""
-    ret = deepcopy(self)  # FIXME(j_luo) This would raise error if self contains non-leaf nodes.
-    for attr, field in ret.__dataclass_fields__.items():
+    field_dict = dict()
+    for field in fields(self):
+        attr = field.name
         anno = field.type
+        value = getattr(self, attr)
         if _is_tensor_type(anno):
-            tensor = getattr(ret, attr)
-            setattr(ret, attr, tensor.detach().cpu().numpy())
-    return ret
+            field_dict[attr] = value.detach().cpu().numpy()
+        elif is_dataclass(value):
+            field_dict[attr] = dataclass_numpy(value)
+        else:
+            field_dict[attr] = value
+    return type(self)(**field_dict)
 
 
 # NOTE(j_luo) Batch dataclasses will inherit the customized __repr__. Not sure if he type hint is correct, but it helps vscode find the function signature.
