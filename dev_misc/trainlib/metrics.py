@@ -22,7 +22,7 @@ def plain(value):
         assert value.size == 1
         value = value[0]
     # Format it nicely.
-    if isinstance(value, (str, int)):
+    if isinstance(value, (str, np.integer, int)):
         value = value
     elif isinstance(value, float):
         value = float(f'{value:.3f}')
