@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sys
 import warnings
 from functools import reduce, wraps
 from operator import iadd, ior
@@ -59,19 +60,28 @@ def buggy(func_or_cls):
 manager = enlighten.get_manager()
 
 
-def pbar(iterable: Iterable, desc: Optional[str] = None) -> Iterator:
+def pbar(iterable: Iterable, desc: Optional[str] = None, text_only: bool = False) -> Iterator:
+    """If `text_only` is True, use sys.stdout and print as usual, otherwise use `enlighten`."""
     # FIXME(j_luo) Will leave the pbar hanging if there is a break in for-loop.
     try:
         total = len(iterable)
     except TypeError:
         total = None
 
-    cnt = manager.counter(desc=desc, total=total, leave=False)
     iterator = iter(iterable)
-    for item in iterator:
-        yield item
-        cnt.update()
-    cnt.close()
+
+    if text_only:
+        for i, item in enumerate(iterator, 1):
+            yield item
+            print(f'\r{i}', end='')
+            sys.stdout.flush()
+
+    else:
+        cnt = manager.counter(desc=desc, total=total, leave=False)
+        for item in iterator:
+            yield item
+            cnt.update()
+        cnt.close()
 
 
 class WithholdKeys:
