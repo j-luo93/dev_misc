@@ -21,6 +21,7 @@ class Callback:
 
 
 class BaseTrainer(ABC):
+    # TODO(j_luo) Refactor this so that everything is a callback, and subclass this by implementing the basic workflow. Note that metric writers are observers.
 
     def __init__(self,
                  model,
@@ -72,12 +73,16 @@ class BaseTrainer(ABC):
 
         self._callbacks[tname].append(Callback(interval, callback))
 
-    def update(self, tname: str):
+    def update(self, tname: str, metrics: Optional[Metrics] = None):
         """This does two things: call tracker and update a trackable, call registered callbacks."""
         self.tracker.update(tname)
         for callback in self._callbacks[tname]:
             if self.tracker[tname].value % callback.interval == 0:
-                callback.func()
+                # FIXME(j_luo) This looks very hacky. Need a principled way of dealing with arguments for callbacks.
+                if metrics is not None:
+                    callback.func(metrics)
+                else:
+                    callback.func()
 
     def set_optimizer(self, optimizer_cls, **kwargs):
         params_cp0, params_cp1 = tee(get_trainable_params(self.model, named=False))
@@ -119,7 +124,7 @@ class BaseTrainer(ABC):
         if not self.check_interval:
             return
 
-        self.update(self.check_tname)
+        self.update(self.check_tname, metrics)
         if not self.tracker.is_finished(self.check_tname):
             return
 
