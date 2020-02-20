@@ -1,5 +1,6 @@
 import ctypes
 import inspect
+import logging
 import warnings
 from dataclasses import dataclass
 from functools import wraps
@@ -97,7 +98,8 @@ class _Patcher:
 
     def patch_named_tensors(self):
         if self._patched:
-            raise RuntimeError(f'Already patched.')
+            logging.debug(f'Named tensors already patched.')
+            return
         for caller_name, patch in self._patches.items():
             setattr(patch.module, patch.name, patch.patched)
         self._patched = True
@@ -167,11 +169,17 @@ def reveal_names(self):
     #     _get_tensors(kwargs)
 
 
+def register_tensor_cls(cls):
+    NoName.tensor_cls.add(cls)
+
+
 class NoName:
+
+    tensor_cls = set()
 
     def __init__(self, *args, **kwargs):
         all_args = chain(iter(args), iter(kwargs.values()))
-        self._to_track = list(filter(torch.is_tensor, all_args))
+        self._to_track = [arg for arg in all_args if torch.is_tensor(arg) or isinstance(arg, tuple(self.tensor_cls))]
 
     def __enter__(self):
         for tensor in self._to_track:
@@ -260,7 +268,7 @@ _Configuration = List[Tuple[_Patchable, List[_Name]]]
 # Directly inherit the names.
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu', 'celu']),
-    (torch, ['zeros_like', 'full_like', 'layer_norm', 'where', 'min', 'max']),
+    (torch, ['zeros_like', 'full_like', 'ones_like', 'layer_norm', 'where', 'min', 'max']),
     (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__', 'type_as'])
 ]
 # Increase ref count for None.
@@ -319,12 +327,15 @@ def _gen_function(patchable: _Patchable, name: str, action: str, caller_name: st
     elif action == 'reduce':
 
         @wraps(old_func)
-        def wrapped(tensor: Tensor, dim: Union[int, str] = None, *args, **kwargs):
+        def wrapped(tensor: Tensor, *args, dim: Union[int, str] = None, **kwargs):
             if dim is not None:
                 names = tensor.names
                 if isinstance(dim, str):
                     dim = names.index(dim)
-                new_names = names[:dim] + names[dim + 1:]
+                if kwargs.get('keepdims', False) or kwargs.get('keepdim', False):
+                    new_names = names
+                else:
+                    new_names = names[:dim] + names[dim + 1:]
                 with NoName(tensor, *args, **kwargs):
                     ret = call_unpatched(tensor, dim, *args, caller_name=caller_name, **kwargs)
                 ret.rename_(*new_names)
