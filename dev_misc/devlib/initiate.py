@@ -35,6 +35,10 @@ def _get_head_commit_id() -> str:
     return ''
 
 
+class DirAlreadyExists(Exception):
+    """Raise this error if the specified `log_dir` already exists."""
+
+
 def initiate(*registries: Registry, logger=False, log_dir=False, log_level=False, gpus=False, random_seed=False, commit_id=False, stacklevel=1):
     """
     This function does a few things.
@@ -71,25 +75,31 @@ def initiate(*registries: Registry, logger=False, log_dir=False, log_level=False
 
     # log_dir would be automatically set as follows if it is not specified manually:
     # ./log/<date>/<config_class_name>[-<message>]/<timestamp>
-    if log_dir and not g.log_dir:
-        folder = Path('./log')
-        configs = get_configs()
-        identifier = '-'.join(filter(lambda x: x is not None, configs.values()))
-        identifier = identifier or 'default'
-        if g.message:
-            identifier += f'-{g.message}'
+    if log_dir:
+        if g.log_dir:
+            try:
+                g.log_dir.mkdir(parents=True)
+            except FileExistsError:
+                raise DirAlreadyExists(f'Directory {g.log_dir} already exists.')
+        else:
+            folder = Path('./log')
+            configs = get_configs()
+            identifier = '-'.join(filter(lambda x: x is not None, configs.values()))
+            identifier = identifier or 'default'
+            if g.message:
+                identifier += f'-{g.message}'
 
-        while True:
-            now = datetime.now()
-            date = now.strftime(r"%Y-%m-%d")
-            timestamp = now.strftime(r"%H-%M-%S")
-            log_dir = folder / date / identifier / timestamp
-            if log_dir.exists():
-                time.sleep(1)
-            else:
-                set_argument('log_dir', log_dir, _force=True)
-                log_dir.mkdir(parents=True)
-                break
+            while True:
+                now = datetime.now()
+                date = now.strftime(r"%Y-%m-%d")
+                timestamp = now.strftime(r"%H-%M-%S")
+                log_dir = folder / date / identifier / timestamp
+                if log_dir.exists():
+                    time.sleep(1)
+                else:
+                    set_argument('log_dir', log_dir, _force=True)
+                    log_dir.mkdir(parents=True)
+                    break
 
     # Create a logger.
     if logger:
