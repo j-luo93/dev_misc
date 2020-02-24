@@ -75,7 +75,7 @@ def pbar(iterable: Iterable, desc: Optional[str] = None, text_only: bool = False
             yield item
             print(f'\r{i}', end='')
             sys.stdout.flush()
-
+        print()
     else:
         cnt = manager.counter(desc=desc, total=total, leave=False)
         for item in iterator:
