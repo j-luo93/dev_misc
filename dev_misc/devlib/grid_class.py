@@ -218,8 +218,7 @@ class Grid:
                     update(field, v)
                     helper(ind + 1)
             else:
-                replaced = eval(f'f"{field.value}"', {}, value_dict)
-                v = eval(replaced)
+                v = eval(f"f'{field.value}'", {}, value_dict)
                 update(field, v)
                 helper(ind + 1)
 
