@@ -211,6 +211,9 @@ class FieldFactory:
     def get_all_header(self) -> List[Header]:
         return self._get_all_typed_fields(Header)
 
+    def get_all_flag(self) -> List[Flag]:
+        return self._get_all_typed_fields(Flag)
+
 
 class Grid:
 
@@ -275,6 +278,7 @@ class Grid:
                 g.add_edge(dep, f)
         self.stack = g.topologicalSort()
         self.headers = ff.get_all_header()
+        self.flags = ff.get_all_flag()
 
     def generate(self):
 
@@ -282,6 +286,7 @@ class Grid:
         full_keys = set(field.full_key for field in self.stack)
         key2cls = {field.full_key: type(field) for field in self.stack}
         header = ' '.join([h.value for h in self.headers]) + ' ' * bool(self.headers)
+        flag = ' '.join([f'--{f.full_key}' for f in self.flags]) + ' ' * bool(self.flags)
         ret = list()
 
         def update(field, v):
@@ -299,7 +304,7 @@ class Grid:
                             new_arg_lst.append(f'--{k} {v}')
                         elif cls is Flag:
                             new_arg_lst.append(f'--{k}')
-                ret.append(header + ' '.join(new_arg_lst))
+                ret.append(header + flag + ' '.join(new_arg_lst))
                 return
 
             field = self.stack[ind]
