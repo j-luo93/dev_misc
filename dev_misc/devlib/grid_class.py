@@ -9,6 +9,7 @@ Extra space is allowed between fields not but inside fields.
     3. `count`, an independent value but will not be part of the arguments, and you have specify at most one of them,
     4. `flag`, just a flag. In this case, no value should be provided.
     5. `header`, this is prepended to every command in the original specified order.
+    6. `extra`, similar to `indep` but not part of the arguments.
 If it's `dep`, the expression for computing its value should be specified, and the key for the value that it is dependent on should be specified in braces (full key or short).
 The entire expression should be encapsulated into a f-string for evaluation.
 For instance:
@@ -31,7 +32,7 @@ from pathlib import Path
 from typing import (ClassVar, Dict, FrozenSet, List, Optional, Set, Tuple,
                     TypeVar, Union)
 
-nonflag_pat = re.compile(r'^(\w+)(?:(?:,\s*)(\w+))?\s*:\s*(indep|dep|count|header)\s*=\s*(.+)$')
+nonflag_pat = re.compile(r'^(\w+)(?:(?:,\s*)(\w+))?\s*:\s*(indep|dep|count|header|extra)\s*=\s*(.+)$')
 flag_pat = re.compile(r'^(\w+)(?:(?:,\s*)(\w+))?\s*:\s*(flag)\s*$')
 
 
@@ -108,6 +109,12 @@ class Count(Indep):
     def __repr__(self):
         return f'Count({self.full_key})'
 
+@dataclass(frozen=True)
+class Extra(Indep):
+
+    def __repr__(self):
+        return f'Extra({self.full_key})'
+
 
 @dataclass(frozen=True)
 class Flag(Field):
@@ -169,7 +176,7 @@ class FieldFactory:
 
     def create_field(self, type_: str, full_key: str, short_key: Optional[str] = '', values: Optional[Union[str, List[V]]] = None) -> Field:
         cls = type(self)
-        if type_ not in ['indep', 'dep', 'flag', 'count', 'header']:
+        if type_ not in ['indep', 'dep', 'flag', 'count', 'header', 'extra']:
             raise FormatError(f'Unexcepted type value {type_}.')
         if full_key in cls._instances:
             raise FormatError(f'Duplicate full key {full_key}.')
@@ -190,6 +197,8 @@ class FieldFactory:
             cls._count = field
         elif type_ == 'header':
             field = Header(full_key, values[0], short_key=short_key)
+        elif type_ == 'extra':
+            field = Extra(full_key, tuple(values), short_key=short_key)
         else:
             field = Flag(full_key, short_key=short_key)
 
