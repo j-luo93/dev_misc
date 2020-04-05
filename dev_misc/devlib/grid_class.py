@@ -10,6 +10,7 @@ Extra space is allowed between fields not but inside fields.
     4. `flag`, just a flag. In this case, no value should be provided.
     5. `header`, this is prepended to every command in the original specified order.
     6. `extra`, similar to `indep` but not part of the arguments.
+    6. `extra_dep`, similar to `dep` but not part of the arguments.
 If it's `dep`, the expression for computing its value should be specified, and the key for the value that it is dependent on should be specified in braces (full key or short).
 The entire expression should be encapsulated into a f-string for evaluation.
 For instance:
@@ -24,6 +25,7 @@ There are also some reserved keywords to trigger specifal behaviors. For instanc
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from collections import defaultdict
@@ -32,7 +34,7 @@ from pathlib import Path
 from typing import (ClassVar, Dict, FrozenSet, List, Optional, Set, Tuple,
                     TypeVar, Union)
 
-nonflag_pat = re.compile(r'^(\w+)(?:(?:,\s*)(\w+))?\s*:\s*(indep|dep|count|header|extra)\s*=\s*(.+)$')
+nonflag_pat = re.compile(r'^(\w+)(?:(?:,\s*)(\w+))?\s*:\s*(indep|dep|extra_dep|count|header|extra)\s*=\s*(.+)$')
 flag_pat = re.compile(r'^(\w+)(?:(?:,\s*)(\w+))?\s*:\s*(flag)\s*$')
 
 
@@ -109,6 +111,7 @@ class Count(Indep):
     def __repr__(self):
         return f'Count({self.full_key})'
 
+
 @dataclass(frozen=True)
 class Extra(Indep):
 
@@ -145,7 +148,7 @@ class Dep(Field):
             if isinstance(dep, Indep):
                 ret.add(dep)
             else:
-                ret.update(dep._get_all_indep())
+                ret.update(dep.get_all_indep())
         return ret
 
     def __repr__(self):
@@ -153,7 +156,25 @@ class Dep(Field):
         return f'Dep({self.full_key}) <- {indeps}'
 
 
-dep_pat = re.compile(r'\{(\w+)\}')
+@dataclass(frozen=True)
+class ExtraDep(Dep):
+
+    def __repr__(self):
+        return f'ExtraDep({self.full_key})'
+
+
+dep_pat = re.compile(r'\{(.+?)\}')
+
+
+def extract_var_names(s) -> List[str]:
+    all_exprs = dep_pat.findall(s)
+    names = set()
+    for expr in all_exprs:
+        names.update([
+            node.id for node in ast.walk(ast.parse(expr))
+            if isinstance(node, ast.Name)
+        ])
+    return names
 
 
 class MoreThanOneCountProvided(Exception):
@@ -176,7 +197,7 @@ class FieldFactory:
 
     def create_field(self, type_: str, full_key: str, short_key: Optional[str] = '', values: Optional[Union[str, List[V]]] = None) -> Field:
         cls = type(self)
-        if type_ not in ['indep', 'dep', 'flag', 'count', 'header', 'extra']:
+        if type_ not in ['indep', 'dep', 'flag', 'count', 'header', 'extra', 'extra_dep']:
             raise FormatError(f'Unexcepted type value {type_}.')
         if full_key in cls._instances:
             raise FormatError(f'Duplicate full key {full_key}.')
@@ -185,11 +206,12 @@ class FieldFactory:
 
         if type_ == 'indep':
             field = Indep(full_key, tuple(values), short_key=short_key)
-        elif type_ == 'dep':
+        elif type_ in ['dep', 'extra_dep']:
             value = values[0]
-            dep_keys = set(dep_pat.findall(value))
+            dep_keys = extract_var_names(value)
             dep_fields = frozenset(cls._instances[key] for key in dep_keys)
-            field = Dep(full_key, value, dep_fields, short_key=short_key)
+            field_cls = Dep if type_ == 'dep' else ExtraDep
+            field = field_cls(full_key, value, dep_fields, short_key=short_key)
         elif type_ == 'count':
             field = Count(full_key, tuple(values), short_key=short_key)
             if cls._count is not None:
@@ -265,7 +287,7 @@ class Grid:
                 type_ = match.group(3)
                 if not is_flag:
                     values = convert_values(match.group(4).split(','))
-                    if type_ == 'dep' and len(values) > 1:
+                    if type_ in ['dep', 'extra_dep'] and len(values) > 1:
                         raise FormatError(f'Expect only one expression for dependent values.')
                     ff.create_field(type_, full_key, short_key, values=values)
                 else:
