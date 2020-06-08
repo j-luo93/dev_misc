@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import wraps
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, no_type_check_decorator
+from typing import Any, Callable, ClassVar, Dict, List, no_type_check_decorator
 
 from pytrie import SortedStringTrie
 
@@ -24,7 +24,8 @@ class FrozenViewError(Exception):
 
 
 class DuplicateArgument(Exception):
-    pass
+    # Set this class variable for False to disable it.
+    on: ClassVar[bool] = True
 
 
 class MultipleMatches(Exception):
@@ -137,8 +138,12 @@ def get_configs():
     return repo.configs
 
 
-def show_args():
-    _print_all_args()
+def show_args(log_also=True, and_exit=False):
+    _print_all_args(log_also=log_also, and_exit=and_exit)
+
+
+def disable_duplicate_check():
+    DuplicateArgument.on = False
 
 
 def _print_all_args(log_also=True, and_exit=False):
@@ -179,7 +184,7 @@ class _Repository:
 
         # TODO(j_luo) Implement aliases.
         arg = Argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
-        if arg.name in self.__dict__:
+        if arg.name in self.__dict__ and DuplicateArgument.on:
             raise DuplicateArgument(f'An argument named "{arg.name}" has been declared.')
         if arg.name in SUPPORTED_VIEW_ATTRS:
             raise ReservedNameError(f'Name "{arg.name}" is reserved for something else.')
@@ -267,9 +272,11 @@ class _Repository:
                 cfg_cls = reg[arg.value]
                 # TODO(j_luo) Use fields instead of vars.
                 cfg = vars(cfg_cls())
+                reg_source = cfg_cls.__name__
                 for cfg_name, cfg_value in cfg.items():
-                    cfg_arg = self._get_argument_by_string(cfg_name, source=cfg_cls.__name__)
+                    cfg_arg = self._get_argument_by_string(cfg_name, source=reg_source)
                     cfg_arg.value = cfg_value
+                    cfg_arg.source = reg_source
                     if cfg_name in cfg_names:
                         raise OverlappingRegistries(
                             f'Argument named "{cfg_name}" has been found in multiple registries.')
@@ -278,6 +285,7 @@ class _Repository:
         for arg, new_value in parsed:
             if arg.name not in self._registries:
                 arg.value = new_value
+                arg.source = 'CLI'
         # Check conditions.
         for condition in self._conditions:
             conditioner_arg = self._get_argument_by_string(condition.conditioner)
@@ -307,10 +315,16 @@ class _RepositoryView:
     def state_dict(self):
         return self._attr_dict
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict, keep_new: bool = False):
         # Load _shared_state.
-        self._attr_dict.clear()
-        self._attr_dict.update(**state_dict)
+        if keep_new:
+            # Keep new CLI commands.
+            for k, v in state_dict.items():
+                if k in self._attr_dict and self._attr_dict[k].source != 'CLI':
+                    self._attr_dict[k] = v
+        else:
+            self._attr_dict.clear()
+            self._attr_dict.update(**state_dict)
         # Load _arg_trie. Remember this is a class variable.
         for arg in self._attr_dict.values():
             _Repository._arg_trie[arg.name] = arg

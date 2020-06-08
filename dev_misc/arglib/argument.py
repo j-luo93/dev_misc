@@ -68,12 +68,24 @@ class Argument:
             self.aliases = aliases
         self.choices = None if choices is None else set(choices)
         self.value = default
+        self._source = None
 
     def __repr__(self):
         return f'Argument({self.name})'
 
     def __str__(self):
         return f'{self.name}: {self.value}'
+
+    @property
+    def source(self):
+        try:
+            return self._source
+        except AttributeError:
+            return None
+
+    @source.setter
+    def source(self, new_value: str):
+        self._source = new_value
 
     @property
     def value(self):
