@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import sys
 import warnings
 from functools import reduce, wraps
@@ -15,19 +16,46 @@ def check_explicit_arg(*values):
         raise ValueError('Must explicitly pass a non-None value.')
 
 
-def cached_property(func):
-    """A decorator for lazy properties."""
-    cached_name = f'_cached_{func.__name__}'
+def cached_property(_func=None, *, in_class: bool = False, key=None):
+    """A decorator for lazy properties.
 
-    @property
-    @wraps(func)
-    def wrapped(self):
-        if not hasattr(self, cached_name):
-            ret = func(self)
-            setattr(self, cached_name, ret)
-        return getattr(self, cached_name)
+    If `in_class` is True, the cache is stored in class instead of in instances.
+    If `key` is provided, the cache will be a dict with `key(self)` as the actual key.
+    """
 
-    return wrapped
+    def wrap(_func):
+
+        cache_name = f'_cached_{_func.__name__}'
+        if key is not None and not in_class:
+            logging.warn(f'`key` ignored since `in_class` is set to False.')
+
+        @property
+        @wraps(_func)
+        def wrapped(self):
+            cache_target = type(self) if in_class else self
+            if key is not None and in_class:
+                # Stored as part of a dict which is stored as an attribute.
+                if not hasattr(cache_target, cache_name):
+                    setattr(cache_target, cache_name, dict())
+                cache = getattr(cache_target, cache_name)
+                k = key(self)
+                if k not in cache:
+                    v = _func(self)
+                    cache[k] = v
+                return cache[k]
+            else:
+                # Stored as an attribute.
+                if not hasattr(cache_target, cache_name):
+                    v = _func(self)
+                    setattr(cache_target, cache_name, v)
+                return getattr(cache_target, cache_name)
+
+        return wrapped
+
+    if _func is None:
+        return wrap
+
+    return wrap(_func)
 
 
 def _issue_warning(func_or_cls, message: str, warning_cls):
