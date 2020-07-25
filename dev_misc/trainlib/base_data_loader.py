@@ -10,7 +10,7 @@ from torch.utils.data.dataloader import default_collate
 from .tracker.tracker import Task
 
 
-class BaseDataLoader(ABC, DataLoader):
+class BaseDataLoader(DataLoader):
     """Base class for DataLoader.
 
     Note that `collate_fn` can be specified through two means. Through a keyward argument in the constructor, or by explicitly specifying a class attribute named `collate_fn`. The former overrides the latter.
