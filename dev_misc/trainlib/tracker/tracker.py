@@ -15,8 +15,8 @@ from typing import Any, ClassVar, Dict, List, Optional, Sequence, Type
 
 from dev_misc.utils import deprecated
 
-from .trackable import (BaseTrackable, MaxTrackable, MinTrackable,
-                        TrackableRegistry, TrackableUpdater)
+from .trackable import (BaseTrackable, CountTrackable, MaxTrackable,
+                        MinTrackable, TrackableRegistry, TrackableUpdater)
 
 task_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
 
@@ -52,6 +52,9 @@ class Tracker:
 
     def add_min_trackable(self, name: str) -> MinTrackable:
         return self.add_trackable(name, agg_func='min')
+
+    def add_count_trackable(self, name: str, total: int) -> CountTrackable:
+        return self.add_trackable(name, total=total, agg_func='count')
 
     @deprecated
     def ready(self):
