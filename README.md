@@ -1,3 +1,8 @@
+# Installation
+1. `pip install -r requirements.txt` to install dependency.
+1. Install [pytorch](https://pytorch.org/get-started/locally/).
+1. `pip install .` to install this package.
+
 # arglib
 ## Goals
 * The ability to specify arguments in a file, and then can be optionally overridden by CLI.
