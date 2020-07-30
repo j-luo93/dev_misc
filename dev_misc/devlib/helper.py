@@ -1,3 +1,4 @@
+from typing import Tuple
 import logging
 import os
 import re
@@ -59,15 +60,18 @@ def get_range(size: int, ndim: int, dim: int, cpu: bool = False):
     return get_tensor(torch.arange(size).long().reshape(*shape), cpu=cpu)
 
 
-def pad_to_dense(a: List[np.ndarray], dtype=np.float32) -> np.ndarray:
+def pad_to_dense(a: List[np.ndarray], dtype=np.float32) -> Tuple[np.ndarray, np.ndarray]:
     '''
     Modified from https://stackoverflow.com/questions/37676539/numpy-padding-matrix-of-different-row-size.
+    Return the sequences and paddings.
     '''
     maxlen = max(map(len, a))
-    ret = np.zeros((len(a), maxlen), dtype=dtype)
+    seqs = np.zeros((len(a), maxlen), dtype=dtype)
+    paddings = np.zeros((len(a), maxlen), dtype=np.bool)
     for i, row in enumerate(a):
-        ret[i, :len(row)] += row
-    return ret
+        seqs[i, :len(row)] += row
+        paddings[i, :len(row)] = True
+    return seqs, paddings
 
 
 def get_array(array_like: Sequence[Any]) -> np.ndarray:
