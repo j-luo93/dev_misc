@@ -66,6 +66,7 @@ def initiate(*registries: Registry, logger=False, log_dir=False, log_level=False
         commit_id = _get_head_commit_id()
         add_argument('commit_id', dtype=str, default=commit_id,
                      msg='commit id of current head, automatically computed', stacklevel=stacklevel)
+    # FIXME(j_luo) The following doesn't do what I wanted. `initiate` is usually called after importing packages, which already declares many arguments before `log_dir` and others. We need to specify the group of parameters to parse instead of known only.
     parse_args(known_only=True)
 
     # Set an environment variable.
