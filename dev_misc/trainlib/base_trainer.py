@@ -7,6 +7,7 @@ from typing import (Callable, Dict, List, NewType, Optional, Sequence, Tuple,
                     Union)
 
 import torch
+from torch.nn.init import xavier_normal_, xavier_uniform_
 
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
@@ -89,12 +90,23 @@ class BaseTrainer(ABC):
         self.optimizer = optimizer_cls(params_cp0, **kwargs)
         # Count number of params.
         total = sum([p.nelement() for p in params_cp1])
-        logging.info(f'Found {total} trainable parameters.')
+        logging.info(f'{total} trainable parameters will be optimized.')
 
     def set_lr_scheduler(self, scheduler_cls, **kwargs):
         if self.optimizer is None:
             raise RuntimeError(f'No optimizer has been set for lr_scheduler.')
         self.lr_scheduler = scheduler_cls(self.optimizer, **kwargs)
+
+    def init_params(self, method='xavier_normal'):
+        init_func = xavier_normal_ if method == 'xavier_normal_' else xavier_uniform_
+        total = 0
+        num_init = 0
+        for param in get_trainable_params(self.model, named=False):
+            if param.dim() == 2:
+                init_func(param)
+                num_init += param.numel()
+            total += param.numel()
+        logging.info(f'{num_init}/{total} trainable parameters initialized using {method}.')
 
     def train(self, dl_reg: BaseDataLoaderRegistry):
         metrics = Metrics()

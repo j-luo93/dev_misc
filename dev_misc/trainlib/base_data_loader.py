@@ -34,6 +34,7 @@ class BaseDataLoader(DataLoader):
 
 
 class BaseDataLoaderRegistry(ABC):
+    # TODO(j_luo) Use both task and split to specify one data loader.
 
     def __init__(self):
         self._data_loaders: Dict[Task, BaseDataLoader] = dict()
