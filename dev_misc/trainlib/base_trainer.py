@@ -123,6 +123,7 @@ class BaseTrainer(ABC):
 
             if self.should_terminate():
                 break
+        self.tracker.clear_trackables()
 
     def should_terminate(self) -> bool:
         """Return whether the training loop should be terminated or not."""

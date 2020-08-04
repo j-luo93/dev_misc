@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import ClassVar
 from typing import Optional
 import logging
 import time
@@ -59,7 +60,7 @@ class CountTrackable(BaseTrackable):
     def __init__(self, name: str, total: int, endless: bool = False, **kwargs):
         self._total = total
         self._endless = endless
-        self._pbar = manager.counter(desc=name, total=total)
+        self._pbar = manager.counter(desc=name, total=total, leave=False)
         super().__init__(name, **kwargs)
 
     @property
@@ -96,6 +97,11 @@ class CountTrackable(BaseTrackable):
     @property
     def is_finished(self) -> bool:
         return self._total and self._pbar.count >= self._total
+
+    def close(self):
+        """Remove progress bar."""
+        # FIXME(j_luo) It seems that enlighten is still buggy?
+        manager.remove(self._pbar)
 
 
 class MaxTrackable(BaseTrackable):
@@ -141,19 +147,22 @@ def reset_all():
 
 class TrackableRegistry:
 
-    _instances: Dict[str, BaseTrackable] = dict()
+    _instances: ClassVar[Dict[str, BaseTrackable]] = dict()
+
+    def __init__(self):
+        self._trackables = dict()
 
     def __getitem__(self, name: str) -> BaseTrackable:
-        return self._instances[name]
+        return self._trackables[name]
 
     def __contains__(self, name: str) -> bool:
-        return name in self._instances
+        return name in self._trackables
 
     def __len__(self):
-        return len(self._instances)
+        return len(self._trackables)
 
     def items(self) -> Iterator[Tuple[str, BaseTrackable]]:
-        yield from self._instances.items()
+        yield from self._trackables.items()
 
     def register_trackable(self, name: str, *, total: int = None, endless: bool = False, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
         """
@@ -170,6 +179,7 @@ class TrackableRegistry:
             trackable = MinTrackable(name, parent=parent, registry=self)
         else:
             raise ValueError(f'Unrecognized aggregate function {agg_func}.')
+        self._trackables[name] = trackable
         self._instances[name] = trackable
 
         return trackable
@@ -177,6 +187,16 @@ class TrackableRegistry:
     @classmethod
     def reset_all(cls):
         cls._instances.clear()
+
+    def clear_trackables(self):
+        for name, trackable in self._trackables.items():
+            try:
+                trackable.close()
+            except AttributeError:
+                pass
+        for name in list(self._trackables.keys()):
+            del self._trackables[name]
+            del self._instances[name]
 
 
 class TrackableUpdater:

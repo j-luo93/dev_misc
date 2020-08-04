@@ -38,6 +38,7 @@ class Tracker:
         self.tasks: List[Task] = list()
         self.task_weights: List[Task] = list()
 
+        # A centralized registry for all trackables.
         self.trackable_reg = TrackableRegistry()
 
     def is_finished(self, *names: str) -> bool:
@@ -47,6 +48,10 @@ class Tracker:
         trackable = self.trackable_reg.register_trackable(name, total=total, endless=endless, agg_func=agg_func)
         return trackable
 
+    def clear_trackables(self):
+        """Clear all trackables. This should be called when training is done."""
+        self.trackable_reg.clear_trackables()
+
     def add_max_trackable(self, name: str) -> MaxTrackable:
         return self.add_trackable(name, agg_func='max')
 
@@ -55,10 +60,6 @@ class Tracker:
 
     def add_count_trackable(self, name: str, total: int) -> CountTrackable:
         return self.add_trackable(name, total=total, agg_func='count')
-
-    @deprecated
-    def ready(self):
-        pass
 
     def add_task(self, task: Task, weight: float):
         self.tasks.append(task)
