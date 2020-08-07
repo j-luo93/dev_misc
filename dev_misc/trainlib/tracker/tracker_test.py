@@ -13,7 +13,6 @@ class TestTracker(TestCase):
     def test_basic(self):
         tracker = Tracker()
         tracker.add_trackable('epoch', total=10)
-        tracker.ready()
         for i in range(10):
             tracker.update('epoch')
             self.assertEqual(tracker.epoch, i + 1)
@@ -22,7 +21,6 @@ class TestTracker(TestCase):
         tracker = Tracker()
         epoch = tracker.add_trackable('epoch', total=10)
         step = epoch.add_trackable('step', total=10)
-        tracker.ready()
         for i in range(10):
             for j in range(10):
                 tracker.update('step')
@@ -33,7 +31,6 @@ class TestTracker(TestCase):
     def test_tasks(self):
         tracker = Tracker()
         tracker.add_trackable('step', total=1000)
-        tracker.ready()
         task1 = Task()
         task2 = Task()
         tracker.add_tasks([task1, task2], [1.0, 0.5])
@@ -49,7 +46,6 @@ class TestTracker(TestCase):
         tracker.add_trackable('step', total=100)
         tracker.add_trackable('best', agg_func='max')
         tracker.add_max_trackable('best2')
-        tracker.ready()
         cnt = 0
         while not tracker.is_finished('step'):
             tracker.update('step')

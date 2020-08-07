@@ -7,7 +7,7 @@ from .argument import ChoiceNotAllowed, MismatchedNArgs
 from .parser import (DuplicateArgument, DuplicateRegistry, MatchNotFound,
                      MultipleMatches, MustForceSetArgument,
                      OverlappingRegistries, ReservedNameError, add_argument,
-                     add_condition, add_registry, g, get_configs, init_g_attr,
+                     add_condition, add_registry, g, get_configs,
                      parse_args, reset_repo, set_argument)
 from .registry import Registry
 
@@ -123,71 +123,6 @@ class TestParser(TestCase):
     def test_reserved_names(self):
         with self.assertRaises(ReservedNameError):
             add_argument('keys')
-
-    def _set_up_init_g_attr_default(self, default='property'):
-
-        @init_g_attr(default=default)
-        class Test:
-
-            add_argument('option', default=1, dtype=int)
-            add_argument('second_option', default=1, dtype=int)
-
-            def __init__(self, arg, option=2, another_option=3):
-                pass
-
-        _parse('--option 4')
-        return Test(1)
-
-    def test_init_g_attr_property(self):
-        x = self._set_up_init_g_attr_default('property')
-        self.assertEqual(x.arg, 1)
-        self.assertEqual(x.another_option, 3)
-        self.assertEqual(x.option, 4)
-        with self.assertRaises(AttributeError):
-            x.second_option
-
-    def test_init_g_attr_attibute(self):
-        x = self._set_up_init_g_attr_default('attribute')
-        self.assertEqual(x.arg, 1)
-        self.assertEqual(x.another_option, 3)
-        self.assertEqual(x.option, 4)
-        with self.assertRaises(AttributeError):
-            x.second_option
-
-    def test_init_g_attr_none(self):
-        x = self._set_up_init_g_attr_default('none')
-        with self.assertRaises(AttributeError):
-            x.arg
-        with self.assertRaises(AttributeError):
-            x.another_option
-        with self.assertRaises(AttributeError):
-            x.option
-        with self.assertRaises(AttributeError):
-            x.second_option
-
-    def test_init_g_attr_annotations(self):
-
-        @init_g_attr(default='property')
-        class Test:
-
-            add_argument('option', default=1, dtype=int)
-            add_argument('second_option', default=1, dtype=int)
-
-            def __init__(self,
-                         arg: 'a',
-                         option=2,
-                         another_option: 'n' = 3):
-                pass
-        _parse('--option 4')
-        x = Test(1)
-
-        self.assertEqual(x.arg, 1)
-        self.assertEqual(x.option, 4)
-        self.assertEqual(x._option, 4)
-        with self.assertRaises(AttributeError):
-            x.another_option
-        with self.assertRaises(AttributeError):
-            x._arg
 
     def _set_up_one_registry(self):
         reg = Registry('config')

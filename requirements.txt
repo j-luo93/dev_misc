@@ -4,3 +4,4 @@ pytrie
 colorlog
 PrettyTable
 typing_extensions
+inflection
