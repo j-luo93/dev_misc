@@ -7,7 +7,7 @@ from typing import (Callable, Dict, List, NewType, Optional, Sequence, Tuple,
                     Union)
 
 import torch
-from torch.nn.init import xavier_normal_, xavier_uniform_
+from torch.nn.init import xavier_normal_, xavier_uniform_, uniform_
 
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
@@ -97,13 +97,18 @@ class BaseTrainer(ABC):
             raise RuntimeError(f'No optimizer has been set for lr_scheduler.')
         self.lr_scheduler = scheduler_cls(self.optimizer, **kwargs)
 
-    def init_params(self, method='xavier_normal'):
-        init_func = xavier_normal_ if method == 'xavier_normal_' else xavier_uniform_
+    def init_params(self, method, *args, **kwargs):
+        m2f = {
+            'xavier_normal': xavier_normal_,
+            'xavier_uniform': xavier_uniform_,
+            'uniform': uniform_
+        }
+        init_func = m2f[method]
         total = 0
         num_init = 0
         for param in get_trainable_params(self.model, named=False):
             if param.dim() == 2:
-                init_func(param)
+                init_func(param, *args, **kwargs)
                 num_init += param.numel()
             total += param.numel()
         logging.info(f'{num_init}/{total} trainable parameters initialized using {method}.')
