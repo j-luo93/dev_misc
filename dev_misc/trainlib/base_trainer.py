@@ -11,7 +11,7 @@ from torch.nn.init import xavier_normal_, xavier_uniform_, uniform_
 
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
-from .tracker.tracker import Task, Tracker
+from .tracker.tracker import BaseSetting, Tracker
 from .trainer import get_trainable_params
 
 
@@ -23,11 +23,12 @@ class Callback:
 
 class BaseTrainer(ABC):
     # TODO(j_luo) Refactor this so that everything is a callback, and subclass this by implementing the basic workflow. Note that metric writers are observers.
+    # TODO(j_luo) Make this stateless?
 
     def __init__(self,
                  model,
-                 tasks: Sequence[Task],
-                 task_weights: Sequence[int],
+                 settings: Sequence[BaseSetting],
+                 setting_weights: Sequence[int],
                  main_tname: str,  # Main trackable name that's updated every step.
                  stage_tnames: Optional[Sequence[str]] = None,  # Names to compute the stage.
                  evaluator: Optional = None,
@@ -38,7 +39,7 @@ class BaseTrainer(ABC):
                  save_tname: str = 'save',
                  save_interval: Optional[int] = None):
         self.tracker = Tracker()
-        self.tracker.add_tasks(tasks, task_weights)
+        self.tracker.add_settings(settings, setting_weights)
         self.add_trackables()
         self.model = model
         self.optimizer = None
@@ -116,8 +117,8 @@ class BaseTrainer(ABC):
     def train(self, dl_reg: BaseDataLoaderRegistry):
         metrics = Metrics()
         while not self.tracker.is_finished(*self.stage_tnames):
-            task = self.tracker.draw_task()
-            dl = dl_reg[task]
+            setting = self.tracker.draw_setting()
+            dl = dl_reg[setting]
             step_metrics = self.train_one_step(dl)
             metrics += step_metrics
 

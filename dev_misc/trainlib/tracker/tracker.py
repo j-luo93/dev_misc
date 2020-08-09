@@ -18,25 +18,24 @@ from dev_misc.utils import deprecated
 from .trackable import (BaseTrackable, CountTrackable, MaxTrackable,
                         MinTrackable, TrackableRegistry, TrackableUpdater)
 
-task_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
+# setting_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
 
 
-@task_class
-class Task:
-    name: ClassVar[str]
+@dataclass
+class BaseSetting:
+    """A setting is just an umbrella term that includes tasks, data loader setups and etc.
 
-    def __hash__(self):
-        return id(self)
-
-    def __eq__(self, other: Task):
-        return id(self) == id(other)
+    A given setting determines a data loader object but not the other way around -- one data loader might be
+    used in multiple settings.
+    """
+    name: str
 
 
 class Tracker:
 
     def __init__(self):
-        self.tasks: List[Task] = list()
-        self.task_weights: List[Task] = list()
+        self.settings: List[BaseSetting] = list()
+        self.setting_weights: List[BaseSetting] = list()
 
         # A centralized registry for all trackables.
         self.trackable_reg = TrackableRegistry()
@@ -61,19 +60,19 @@ class Tracker:
     def add_count_trackable(self, name: str, total: int) -> CountTrackable:
         return self.add_trackable(name, total=total, agg_func='count')
 
-    def add_task(self, task: Task, weight: float):
-        self.tasks.append(task)
-        self.task_weights.append(weight)
+    def add_setting(self, setting: BaseSetting, weight: float):
+        self.settings.append(setting)
+        self.setting_weights.append(weight)
 
-    def add_tasks(self, tasks: Sequence[Task], weights: List[float]):
-        if len(tasks) != len(weights):
-            raise ValueError(f'Mismatched lengths from tasks ({len(tasks)}) and weights ({len(weights)}).')
-        for task, weight in zip(tasks, weights):
-            self.add_task(task, weight)
+    def add_settings(self, settings: Sequence[BaseSetting], weights: List[float]):
+        if len(settings) != len(weights):
+            raise ValueError(f'Mismatched lengths from settings ({len(settings)}) and weights ({len(weights)}).')
+        for setting, weight in zip(settings, weights):
+            self.add_setting(setting, weight)
 
-    def draw_task(self) -> Task:
-        task = random.choices(self.tasks, weights=self.task_weights)[0]
-        return task
+    def draw_setting(self) -> BaseSetting:
+        setting = random.choices(self.settings, weights=self.setting_weights)[0]
+        return setting
 
     def __getattr__(self, attr: str):
         try:

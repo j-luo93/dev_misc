@@ -2,7 +2,7 @@ from collections import Counter
 from unittest import TestCase
 
 from .trackable import reset_all
-from .tracker import Task, Tracker
+from .tracker import BaseSetting, Tracker
 
 
 class TestTracker(TestCase):
@@ -31,12 +31,12 @@ class TestTracker(TestCase):
     def test_tasks(self):
         tracker = Tracker()
         tracker.add_trackable('step', total=1000)
-        task1 = Task()
-        task2 = Task()
+        task1 = BaseSetting()
+        task2 = BaseSetting()
         tracker.add_tasks([task1, task2], [1.0, 0.5])
         cnt = Counter()
         for _ in range(1000):
-            task = tracker.draw_task()
+            task = tracker.draw_settinging()
             cnt[task] += 1
             tracker.update('step')
         self.assertTrue(abs(2 - cnt[task1] / cnt[task2]) < 0.5)
