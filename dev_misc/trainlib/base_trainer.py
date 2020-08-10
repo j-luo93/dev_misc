@@ -7,7 +7,7 @@ from typing import (Callable, Dict, List, NewType, Optional, Sequence, Tuple,
                     Union)
 
 import torch
-from torch.nn.init import xavier_normal_, xavier_uniform_, uniform_
+from torch.nn.init import uniform_, xavier_normal_, xavier_uniform_
 
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
@@ -158,7 +158,7 @@ class BaseTrainer(ABC):
         return '_'.join(ret)
 
     def check(self, metrics: Metrics):
-        logging.info(metrics.get_table(title=str(self.stage)))
+        logging.info(metrics.get_table(title=str(self.stage), num_paddings=8))
         metrics.clear()
 
     def try_evaluate(self) -> Optional[Metrics]:
@@ -175,7 +175,7 @@ class BaseTrainer(ABC):
 
     def evaluate(self):
         eval_metrics = self.evaluator.evaluate(self.stage)
-        logging.info(eval_metrics.get_table(title='Eval'))
+        logging.info(eval_metrics.get_table(title='Eval', num_paddings=8))
         return eval_metrics
 
     def try_save(self, eval_metrics: Optional[Metrics]):

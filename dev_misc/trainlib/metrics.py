@@ -179,7 +179,11 @@ class Metrics:
     def __getitem__(self, key: str):
         return self._metrics[key]
 
-    def get_table(self, title=''):
+    def get_table(self, title='', num_paddings: int = 0):
+        """Return a pretty table based on this `Metrics` object, with an optional title.
+
+        If `num_paddings` is non-zero, return a str object of this table instead with a specified number of leading whitespaces.
+        """
         t = pt()
         if title:
             t.title = title
@@ -188,7 +192,11 @@ class Metrics:
             metric = self._metrics[k]
             t.add_row([k, plain(metric.value), plain(metric.weight), plain(metric.mean)])
         t.align = 'l'
-        return t
+        if num_paddings == 0:
+            return t
+
+        ret = ('\n' + str(t)).replace('\n', '\n' + ' ' * num_paddings)
+        return ret
 
     def clear(self):
         self._metrics.clear()
