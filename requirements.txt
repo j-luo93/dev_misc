@@ -2,6 +2,6 @@ enlighten
 pandas
 pytrie
 colorlog
-PrettyTable
+PTable
 typing_extensions
 inflection
