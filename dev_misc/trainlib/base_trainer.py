@@ -169,9 +169,7 @@ class BaseTrainer(ABC):
         if not self.tracker.is_finished(self.eval_tname):
             return
 
-        self.model.eval()
-        with torch.no_grad():
-            return self.evaluate()
+        return self.evaluate()
 
     def evaluate(self):
         eval_metrics = self.evaluator.evaluate(self.stage)
