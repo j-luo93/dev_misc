@@ -173,7 +173,6 @@ class BaseTrainer(ABC):
 
     def evaluate(self):
         eval_metrics = self.evaluator.evaluate(self.stage)
-        logging.info(eval_metrics.get_table(title='Eval', num_paddings=8))
         return eval_metrics
 
     def try_save(self, eval_metrics: Optional[Metrics]):
