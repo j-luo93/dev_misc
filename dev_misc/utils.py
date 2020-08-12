@@ -192,3 +192,19 @@ def concat_lists(list_of_lists: List[list]) -> list:
 
 def union_sets(list_of_sets: List[set]) -> set:
     return reduce(ior, list_of_sets, set())
+
+
+def handle_sequence_inputs(_func):
+    """A decorator for functions to enable them to handle sequence inputs. Currently only support single-argument functions."""
+
+    sign = inspect.signature(_func)
+    if not inspect.isfunction(_func):
+        raise TypeError(f'Can only support functions.')
+    if len(sign.parameters) != 1:
+        raise TypeError(f'Can only support single-argument functions.')
+
+    @wraps(_func)
+    def wrapped(seq):
+        return [_func(x) for x in seq]
+
+    return wrapped
