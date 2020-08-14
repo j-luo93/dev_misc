@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from itertools import tee
+from pathlib import Path
 from typing import (Callable, Dict, List, NewType, Optional, Sequence, Tuple,
                     Union)
 
@@ -11,6 +12,7 @@ from torch.nn.init import uniform_, xavier_normal_, xavier_uniform_
 
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
 from .metrics import Metrics
+from .tb_writer import MetricWriter
 from .tracker.tracker import BaseSetting, Tracker
 from .trainer import get_trainable_params
 
@@ -37,7 +39,8 @@ class BaseTrainer(ABC):
                  eval_tname: str = 'eval',
                  eval_interval: Optional[int] = None,
                  save_tname: str = 'save',
-                 save_interval: Optional[int] = None):
+                 save_interval: Optional[int] = None,
+                 metric_writer: Optional[MetricWriter] = None):
         self.tracker = Tracker()
         self.tracker.add_settings(settings, setting_weights)
         self.add_trackables()
@@ -64,6 +67,11 @@ class BaseTrainer(ABC):
             self.save_tname = save_tname
         self._callbacks: Dict[str, List[Callback]] = defaultdict(list)
 
+        self.metric_writer = metric_writer
+        # `global_step` is an integer that can be used by the metric writer for writing to tensorboard. It is the number of steps (i.e., number of the batches) that has passed.
+        # IDEA(j_luo) Make global_step and stage a global property?
+        self._global_step = 0
+
     @abstractmethod
     def add_trackables(self, *args, **kwargs):
         """Add all trackables. `self.tracker` should be called here."""
@@ -75,7 +83,7 @@ class BaseTrainer(ABC):
 
         self._callbacks[tname].append(Callback(interval, callback))
 
-    def update(self, tname: str, metrics: Optional[Metrics] = None):
+    def _update(self, tname: str, metrics: Optional[Metrics] = None):
         """This does two things: call tracker and update a trackable, call registered callbacks."""
         self.tracker.update(tname)
         for callback in self._callbacks[tname]:
@@ -121,8 +129,10 @@ class BaseTrainer(ABC):
             dl = dl_reg[setting]
             step_metrics = self.train_one_step(dl)
             metrics += step_metrics
+            # FIXME(j_luo)  global step should be part of tracker.
+            self._global_step += 1
+            self._update(self.main_tname)
 
-            self.update(self.main_tname)
             self.try_check(metrics)
             eval_metrics = self.try_evaluate()
             self.try_save(eval_metrics)
@@ -143,7 +153,7 @@ class BaseTrainer(ABC):
         if not self.check_interval:
             return
 
-        self.update(self.check_tname, metrics)
+        self._update(self.check_tname, metrics)
         if not self.tracker.is_finished(self.check_tname):
             return
 
@@ -159,27 +169,29 @@ class BaseTrainer(ABC):
 
     def check(self, metrics: Metrics):
         logging.info(metrics.get_table(title=str(self.stage), num_paddings=8))
+        if self.metric_writer is not None:
+            self.metric_writer.add_metrics(metrics, global_step=self._global_step)
         metrics.clear()
 
     def try_evaluate(self) -> Optional[Metrics]:
         if not self.eval_interval or self.evaluator is None:
             return
 
-        self.update(self.eval_tname)
+        self._update(self.eval_tname)
         if not self.tracker.is_finished(self.eval_tname):
             return
 
         return self.evaluate()
 
     def evaluate(self):
-        eval_metrics = self.evaluator.evaluate(self.stage)
+        eval_metrics = self.evaluator.evaluate(self.stage, self._global_step)
         return eval_metrics
 
     def try_save(self, eval_metrics: Optional[Metrics]):
         if not self.save_interval:
             return
 
-        self.update(self.save_tname)
+        self._update(self.save_tname)
         if not self.tracker.is_finished(self.save_tname):
             return
 

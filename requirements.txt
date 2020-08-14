@@ -5,3 +5,4 @@ colorlog
 PTable
 typing_extensions
 inflection
+tensorboard
