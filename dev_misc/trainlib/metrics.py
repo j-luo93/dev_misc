@@ -113,9 +113,8 @@ class Metric:
             self._w = 0
 
     # TODO(j_luo) Think about api
-    # FIXME(j_luo) This is misleading -- it's out-of-place.
-    def with_prefix_(self, prefix: SupportsStr) -> Metric:
-        return Metric(f'{prefix}_{self.name}', self._v, weight=self._w, report_mean=self._report_mean)
+    def with_prefix(self, prefix: SupportsStr) -> Metric:
+        return Metric(f'{prefix}/{self.name}', self._v, weight=self._w, report_mean=self._report_mean)
 
 
 # TODO(j_luo) Add tests and simplify syntax.
@@ -205,8 +204,8 @@ class Metrics:
         return len(self._metrics)
 
     # TODO(j_luo) Think about api for this one.
-    def with_prefix_(self, prefix: SupportsStr) -> Metrics:
-        metrics = [metric.with_prefix_(prefix) for metric in self._metrics.values()]
+    def with_prefix(self, prefix: SupportsStr) -> Metrics:
+        metrics = [metric.with_prefix(prefix) for metric in self._metrics.values()]
         return Metrics(*metrics)
 
     def __iter__(self) -> Iterator[Metric]:

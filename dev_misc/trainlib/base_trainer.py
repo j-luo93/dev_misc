@@ -171,6 +171,7 @@ class BaseTrainer(ABC):
         logging.info(metrics.get_table(title=str(self.stage), num_paddings=8))
         if self.metric_writer is not None:
             self.metric_writer.add_metrics(metrics, global_step=self._global_step)
+            self.metric_writer.flush()
         metrics.clear()
 
     def try_evaluate(self) -> Optional[Metrics]:
