@@ -30,6 +30,12 @@ class BaseSetting:
     """
     name: str
 
+    def __hash__(self):
+        return id(self.name)
+
+    def __eq__(self, other: BaseSetting):
+        return self.name == other.name
+
 
 class Tracker:
 

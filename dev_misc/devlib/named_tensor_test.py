@@ -4,8 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn.modules import MultiheadAttention
 
-from .named_tensor import (NoName, adv_index, embed, expand_as,
-                           get_named_range, patch_named_tensors, self_attend,
+from .named_tensor import (NoName, get_named_range, patch_named_tensors,
                            unpatch_named_tensors)
 
 
@@ -19,45 +18,6 @@ class TestNamedTensorBase(TestCase):
 
 
 class TestNamedTensorOldHelperFunctions(TestNamedTensorBase):
-
-    def test_embed(self):
-        tensor = torch.randint(10, (10, 10)).refine_names('batch', 'length')
-        emb = nn.Embedding(10, 20)
-        tensor = embed(emb, tensor, 'emb')
-        self.has_names(tensor, ('batch', 'length', 'emb'))
-
-    def test_self_attend(self):
-        mod = MultiheadAttention(40, 8)
-        tensor = torch.randn(13, 32, 40, names=['length', 'batch', 'repr'])
-        output, weight = self_attend(mod, tensor, 'self_attn_repr')
-        self.has_names(output, ('length', 'batch', 'self_attn_repr'))
-        self.has_names(weight, ('batch', 'length', 'length_T'))
-
-    def test_adv_index(self):
-        tensor = torch.randn(32, 10, 10, names=['x', 'y', 'z'])
-        index = torch.randint(10, (3, )).refine_names('w')
-        tensor = adv_index(tensor, 'z', index)
-        self.has_names(tensor, ('x', 'y', 'w'))
-        self.has_shape(tensor, (32, 10, 3))
-
-    # def test_gather(self):
-    #     tensor = torch.randn(32, 10, names=['batch', 'length'])
-    #     index1 = torch.randint(10, (32,)).refine_names('batch')
-    #     ret1 = gather(tensor, index1)
-    #     self.has_names(ret1, ('batch', ))
-    #     self.has_shape(ret1, (32, ))
-
-    #     index2 = torch.randint(32, (10,)).refine_names('length')
-    #     ret2 = gather(tensor, index2)
-    #     self.has_names(ret2, ('length', ))
-    #     self.has_shape(ret2, (10, ))
-
-    def test_expand_as(self):
-        tensor = torch.randn(32, names=['batch'])
-        other = torch.randn(32, 10, names=['batch', 'repr'])
-        ret = expand_as(tensor, other)
-        self.has_names(ret, ('batch', 'repr'))
-        self.has_shape(ret, (32, 10))
 
     def test_get_named_range(self):
         ret = get_named_range(32, 'batch')

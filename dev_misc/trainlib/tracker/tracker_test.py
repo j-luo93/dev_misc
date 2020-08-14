@@ -28,18 +28,18 @@ class TestTracker(TestCase):
             tracker.update('epoch')
             self.assertEqual(tracker.epoch, i + 1)
 
-    def test_tasks(self):
+    def test_settings(self):
         tracker = Tracker()
         tracker.add_trackable('step', total=1000)
-        task1 = BaseSetting()
-        task2 = BaseSetting()
-        tracker.add_tasks([task1, task2], [1.0, 0.5])
+        setting1 = BaseSetting('1')
+        setting2 = BaseSetting('2')
+        tracker.add_settings([setting1, setting2], [1.0, 0.5])
         cnt = Counter()
         for _ in range(1000):
-            task = tracker.draw_settinging()
-            cnt[task] += 1
+            setting = tracker.draw_setting()
+            cnt[setting] += 1
             tracker.update('step')
-        self.assertTrue(abs(2 - cnt[task1] / cnt[task2]) < 0.5)
+        self.assertTrue(abs(2 - cnt[setting1] / cnt[setting2]) < 0.5)
 
     def test_with_count_and_max_trackables(self):
         tracker = Tracker()

@@ -89,10 +89,10 @@ class _Condition:
     conditionee_value: Any
 
 
-def add_condition(conditioner: str, conditionee: str, conditioner_value: Any, conditionee_value: Any):
+def add_condition(conditioner: str, conditioner_value: Any, conditionee: str, conditionee_value: Any):
     """Add a condition between `conditioner` and `conditionee`."""
     repo = _Repository()
-    condition = _Condition(conditioner, conditionee, conditioner_value, conditionee_value)
+    condition = _Condition(conditioner, conditioner_value, conditionee, conditionee_value)
     repo.add_condition(condition)
 
 
