@@ -541,6 +541,22 @@ def topk(tensor: FT, k: int, dim: Dim = -1, *args, **kwargs):
         return values, indices
 
 
+@patch(torch)
+def repeat_interleave(input_, repeats, dim=None):
+    dim_int = dim
+    if isinstance(dim, str):
+        dim_int = input_.names.index(dim)
+
+    with NoName(input_, repeats):
+        ret = call_unpatched(input_, repeats, dim=dim_int)
+
+    if isinstance(dim, str):
+        new_names = input_.names[:dim_int] + (dim, ) + input_.names[dim_int + 1:]
+        ret = ret.refine_names(*new_names)
+
+    return ret
+
+
 class NamedModule:
 
     def _refine_names_helper(self, attr_path: List[str], names: Sequence[str]):
