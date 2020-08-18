@@ -146,28 +146,6 @@ def reveal_names(self):
         del self._hidden_names_depth
     return self
 
-    # def __init__(self, *args, **kwargs):
-
-    #     self._to_track = list()
-
-    #     def _get_tensors(obj):
-    #         # Try mapping.
-    #         if isinstance(obj, Mapping):
-    #             for value in obj.values():
-    #                 _get_tensors(value)
-    #         elif torch.is_tensor(obj):
-    #             self._to_track.append(obj)
-    #         elif not isinstance(obj, str):
-    #             # Try iterator.
-    #             try:
-    #                 for item in obj:
-    #                     _get_tensors(item)
-    #             except TypeError:
-    #                 pass
-
-    #     _get_tensors(args)
-    #     _get_tensors(kwargs)
-
 
 def register_tensor_cls(cls):
     NoName.tensor_cls.add(cls)
@@ -269,7 +247,7 @@ _Configuration = List[Tuple[_Patchable, List[_Name]]]
 _to_inherit: _Configuration = [
     (torch.nn.functional, ['leaky_relu', 'celu']),
     (torch, ['zeros_like', 'full_like', 'ones_like', 'layer_norm', 'where', 'min', 'max']),
-    (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__', 'type_as'])
+    (torch.Tensor, ['addcmul_', 'addcdiv_', '__or__', '__and__', '__invert__', '__mod__', 'type_as', 'repeat'])
 ]
 # Increase ref count for None.
 _to_inc_refcount: _Configuration = [
