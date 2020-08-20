@@ -4,9 +4,10 @@ import inspect
 import logging
 import sys
 import warnings
-from functools import reduce, wraps
+from functools import lru_cache, reduce, wraps
 from operator import iadd, ior
-from typing import ClassVar, Dict, Iterable, Iterator, List, Mapping, Optional
+from typing import (Callable, ClassVar, Dict, Iterable, Iterator, List,
+                    Mapping, Optional)
 
 import enlighten
 
@@ -208,3 +209,68 @@ def handle_sequence_inputs(_func):
         return [_func(x) for x in seq]
 
     return wrapped
+
+
+class _CacheSwitches:
+
+    def __init__(self):
+        self._switch_status: Dict[str, bool] = dict()
+        self._switch2func: Dict[str, Callable] = dict()
+
+    def __getitem__(self, switch: str) -> bool:
+        return self._switch_status[switch]
+
+    def add_switch(self, switch: str, func: Callable):
+        if switch in self._switch_status:
+            raise NameError(f'A switch named {switch} already exists.')
+
+        self._switch_status[switch] = False
+        self._switch2func[switch] = func
+
+    def switch_on(self, switch: str):
+        if self._switch_status[switch]:
+            raise RuntimeError(f'The switch named {switch} has already been turned on.')
+        self._switch_status[switch] = True
+
+    def switch_off(self, switch: str):
+        if not self._switch_status[switch]:
+            raise RuntimeError(f'The switch named {switch} has already been turned off.')
+        self._switch_status[switch] = False
+        func = self._switch2func[switch]
+        func.cache_clear()
+
+
+_cache_switches = _CacheSwitches()
+
+
+def cacheable(_func=None, *, switch: Optional[str] = None):
+    if switch is None:
+        switch = _func.__name__
+
+    def wrap(_func):
+        _cacheable_func = lru_cache(maxsize=None)(_func)
+        _cache_switches.add_switch(switch, _cacheable_func)
+
+        @wraps(_func)
+        def wrapped(self, *args, **kwargs):
+            func_to_run = _cacheable_func if _cache_switches[switch] else _func
+            return func_to_run(self, *args, **kwargs)
+
+        return wrapped
+
+    if _func is None:
+        return wrap
+
+    return wrap(_func)
+
+
+class ScopedCache:
+
+    def __init__(self, switch: str):
+        self._switch = switch
+
+    def __enter__(self):
+        _cache_switches.switch_on(self._switch)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        _cache_switches.switch_off(self._switch)
