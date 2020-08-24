@@ -535,6 +535,17 @@ def repeat_interleave(input_, repeats, dim=None):
     return ret
 
 
+def duplicate(tensor: torch.Tensor, name: str, size: int, dup_name: str):
+    assert tensor.has_names()
+    names = tensor.names
+    sizes = tensor.shape
+    dim = names.index(name)
+    new_sizes = sizes[: dim + 1] + (size, ) + sizes[dim + 1:]
+    new_names = names[: dim + 1] + (dup_name, ) + names[dim + 1:]
+    ret = tensor.align_to(*new_names)
+    return ret.expand(*new_sizes)
+
+
 class NamedModule:
 
     def _refine_names_helper(self, attr_path: List[str], names: Sequence[str]):
