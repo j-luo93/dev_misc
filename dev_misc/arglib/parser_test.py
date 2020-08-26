@@ -4,10 +4,10 @@ from copy import deepcopy
 from unittest import TestCase
 
 from .argument import ChoiceNotAllowed, MismatchedNArgs
-from .parser import (DuplicateArgument, DuplicateRegistry, MatchNotFound,
-                     MultipleMatches, MustForceSetArgument,
+from .parser import (Arg, CheckFailed, DuplicateArgument, DuplicateRegistry,
+                     MatchNotFound, MultipleMatches, MustForceSetArgument,
                      OverlappingRegistries, ReservedNameError, add_argument,
-                     add_condition, add_registry, g, get_configs,
+                     add_check, add_condition, add_registry, g, get_configs,
                      parse_args, reset_repo, set_argument)
 from .registry import Registry
 
@@ -280,11 +280,30 @@ class TestParser(TestCase):
         _parse('--second 1 3')
         self.assertTupleEqual(g.second, (1, 3))
 
-    def check_condition(self):
+    def test_condition(self):
         add_argument('first', default='a')
         add_argument('second', default='b')
         add_condition('first', 'a', 'second', 'b')
         _parse('--second b')
-        _parse('--first b')
+        _parse('--first a')
         with self.assertRaises(ValueError):
             _parse('--second c')
+
+    def test_simple_check(self):
+        add_argument('first', default='a')
+        add_check(Arg('first') == 'b')
+        _parse('--first b')
+        self.assertEqual(g.first, 'b')
+
+        with self.assertRaises(CheckFailed):
+            _parse('--first a')
+
+    def test_check_with_or(self):
+        add_argument('first', default='a')
+        add_argument('second', default='b')
+        add_check((Arg('first') == 'a') | (Arg('second') == 'b'))
+        _parse('--first a')
+        _parse('--first b')
+
+        with self.assertRaises(CheckFailed):
+            _parse('--second a')

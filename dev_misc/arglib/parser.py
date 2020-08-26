@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import inspect
 import logging
 import re
@@ -6,9 +8,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import wraps
 from types import SimpleNamespace
-from typing import Any, Callable, ClassVar, Dict, List, no_type_check_decorator
+from typing import (Any, Callable, ClassVar, Dict, List, Optional, Union,
+                    no_type_check_decorator)
 
 from pytrie import SortedStringTrie
+from typeguard import typechecked
 
 from dev_misc.utils import deprecated
 
@@ -52,6 +56,10 @@ class ArgumentScopeNotSupplied(Exception):
     pass
 
 
+class CheckFailed(Exception):
+    """Raise this if one of the checks has failed."""
+
+
 def _get_scope(scope=None, stacklevel=1):
     # TODO(j_luo) rename scope to sth else?
     """
@@ -81,6 +89,7 @@ def add_argument(name, *aliases, dtype=str, default=None, nargs=1, msg='', choic
     repo.add_argument(name, *aliases, scope=scope, dtype=dtype, default=default, nargs=nargs, msg=msg, choices=choices)
 
 
+@deprecated
 @dataclass
 class _Condition:
     conditioner: str
@@ -89,11 +98,79 @@ class _Condition:
     conditionee_value: Any
 
 
+@deprecated
 def add_condition(conditioner: str, conditioner_value: Any, conditionee: str, conditionee_value: Any):
     """Add a condition between `conditioner` and `conditionee`."""
     repo = _Repository()
     condition = _Condition(conditioner, conditioner_value, conditionee, conditionee_value)
     repo.add_condition(condition)
+
+
+@dataclass
+class Arg:
+    """A symbolic representation for an argument. Used for assertions."""
+    name: str
+
+    def __bool__(self):
+        raise RuntimeError(f'You should not turn this into a boolean or evaluate this in truth conditions.')
+
+    @typechecked
+    def __eq__(self, value: _V) -> _Expression:
+        return _Expression('eq', self, value)
+
+    def __str__(self):
+        return f'Arg({self.name})'
+
+
+_V = Union[Arg, str, int, float]
+
+
+@dataclass
+class _Expression:
+    op: str
+    left: _VE
+    right: _VE
+
+    @typechecked
+    def __or__(self, exp: _Expression) -> _Expression:
+        return _Expression('or', self, exp)
+
+    def __bool__(self):
+        raise RuntimeError(f'You should not turn this into a boolean or evaluate this in truth conditions.')
+
+    def __str__(self):
+        if self.op == 'eq':
+            return f'{self.left} == {self.right}'
+        elif self.op == 'or':
+            return f'({self.left}) | ({self.right})'
+        else:
+            raise ValueError(f'Unrecognized value "{self.op}" for self.op.')
+
+    def evaluate(self, eval_func: Callable) -> bool:
+        if self.op == 'eq':
+
+            def get_value(v: _V):
+                if isinstance(v, Arg):
+                    return eval_func(v.name)
+                return v
+
+            left = get_value(self.left)
+            right = get_value(self.right)
+            return left == right
+        elif self.op == 'or':
+            left = self.left.evaluate(eval_func)
+            right = self.right.evaluate(eval_func)
+            return left or right
+        else:
+            raise ValueError(f'Unrecognized value "{self.op}" for self.op.')
+
+
+_VE = Union[_V, _Expression]
+
+
+def add_check(exp: _Expression):
+    repo = _Repository()
+    repo.add_check(exp)
 
 
 def set_argument(name, value, *, _force=False):
@@ -162,18 +239,22 @@ def _print_all_args(log_also=True, and_exit=False):
 
 
 class _Repository:
+    # IDEA(j_luo) Subclass Singleton instead.
     """Copied from https://stackoverflow.com/questions/6255050/python-thinking-of-a-module-and-its-variables-as-a-singleton-clean-approach."""
 
     _shared_state = dict()
     _arg_trie = SortedStringTrie()
     _registries = dict()
     _conditions: List[_Condition] = list()
+    _checks: List[_Expression] = list()
 
     @classmethod
     def reset(cls):
         cls._shared_state.clear()
         cls._arg_trie = SortedStringTrie()
         cls._registries.clear()
+        cls._conditions.clear()
+        cls._checks.clear()
 
     def __init__(self):
         self.__dict__ = self._shared_state
@@ -194,8 +275,12 @@ class _Repository:
             self._arg_trie[f'no_{arg.name}'] = arg
         return arg
 
+    @deprecated
     def add_condition(self, condition: _Condition):
         self._conditions.append(condition)
+
+    def add_check(self, exp: _Expression):
+        self._checks.append(exp)
 
     def set_argument(self, name, value, *, _force=False):
         if not _force:
@@ -286,12 +371,17 @@ class _Repository:
             if arg.name not in self._registries:
                 arg.value = new_value
                 arg.source = 'CLI'
-        # Check conditions.
+        # Check conditions (old).
         for condition in self._conditions:
             conditioner_arg = self._get_argument_by_string(condition.conditioner)
             conditionee_arg = self._get_argument_by_string(condition.conditionee)
-            if conditionee_arg.value == condition.conditioner_value and conditionee_arg.value != condition.conditionee_value:
+            if conditioner_arg.value == condition.conditioner_value and conditionee_arg.value != condition.conditionee_value:
                 raise ValueError(f'Condition not satisfied for {condition.conditioner} and {condition.conditionee}.')
+        # Check conditions (new).
+        for check in self._checks:
+            truth_value = check.evaluate(lambda name: self._get_argument_by_string(name).value)
+            if not truth_value:
+                raise CheckFailed(f'Failed argument check for {check}.')
         return g
 
 

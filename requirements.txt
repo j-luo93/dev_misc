@@ -6,3 +6,4 @@ PTable
 typing_extensions
 inflection
 tensorboard
+typeguard
