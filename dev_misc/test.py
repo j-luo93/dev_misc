@@ -7,10 +7,13 @@ from dev_misc.arglib import reset_repo
 from dev_misc.devlib import NDA
 from dev_misc.devlib.named_tensor import (patch_named_tensors,
                                           unpatch_named_tensors)
+from dev_misc.devlib.tensor_x import TensorX
 
 
 def _to_array(array_like):
     if torch.is_tensor(array_like):
+        ret = array_like.cpu().numpy()
+    elif isinstance(array_like, TensorX):
         ret = array_like.cpu().numpy()
     else:
         ret = np.asarray(array_like)

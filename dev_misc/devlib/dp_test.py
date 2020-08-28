@@ -2,7 +2,7 @@ import torch
 
 from dev_misc import TestCase, test_with_arguments
 
-from .dp import Fibonacci, Hmm
+from .dp import Fibonacci, Hmm, Lis
 from .tensor_x import TensorX as Tx
 
 _BS = 32  # Batch size.
@@ -42,3 +42,10 @@ class TestDP(TestCase):
         test(2, ans2)
         test(3, ans3)
         test(4, ans4)
+
+    def test_lis(self):
+        a = Tx(torch.LongTensor([[2, 4, 3, 5, 2, 1, 2, 7, 9]]), ['batch', 'l'])
+        dp = Lis(a)
+        dp.run()
+        ans = [5]
+        self.assertArrayAlmostEqual(dp[9], ans)

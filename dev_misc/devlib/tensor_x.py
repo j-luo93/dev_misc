@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import inspect
 from functools import wraps
-from typing import Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union, overload
 
 import torch
 from typeguard import typechecked
 
-from dev_misc import LT
+from dev_misc import LT, NDA
 
 T = torch.Tensor
 
@@ -21,13 +21,23 @@ def elemwise(func):
     @wraps(func)
     @typechecked
     def wrapped(self: TensorX, other: Union[TensorX, float, int, float]) -> TensorX:
+        names = self.names
         if isinstance(other, TensorX):
-            if set(self.names) != set(other.names):
+            ns0 = set(self.names)
+            ns1 = set(other.names)
+            if ns0 <= ns1:
+                data0 = self.align_as(other).data
+                data1 = other.data
+                names = other.names
+            elif ns0 > ns1:
+                data0 = self.data
+                data1 = other.align_as(self).data
+            else:
                 raise NameMismatch(f'Names mismatch for element-wise op {func}, got {self.names} and {other.names}.')
-            ret = func(self.data, other.align_as(self).data)
+            ret = func(data0, data1)
         else:
             ret = func(self.data, other)
-        return TensorX(ret, self.names)
+        return TensorX(ret, names)
 
     return wrapped
 
@@ -39,6 +49,16 @@ def inherit_prop(attr):
     def wrapped(self: TensorX):
         ret = attr.__get__(self.data)
         return ret
+
+    return wrapped
+
+
+def inherit_unary(func):
+
+    @wraps(func)
+    def wrapped(self: TensorX) -> TensorX:
+        ret = func(self.data)
+        return TensorX(ret, self.names)
 
     return wrapped
 
@@ -91,6 +111,7 @@ class Renamed:
 
 class TensorX:
 
+    @typechecked
     def __init__(self, data: T, names: Sequence[str]):
         _check_names(data, names)
         self.data = data
@@ -98,6 +119,9 @@ class TensorX:
 
     __mul__ = elemwise(T.__mul__)
     __add__ = elemwise(T.__add__)
+    __sub__ = elemwise(T.__sub__)
+    __gt__ = elemwise(T.__gt__)
+    __lt__ = elemwise(T.__lt__)
     __radd__ = elemwise(T.__radd__)
 
     ndim = inherit_prop(T.ndim)
@@ -188,3 +212,46 @@ class TensorX:
     def rename_(self, old2new) -> TensorX:
         self.names = _change_names(self.names, old2new)
         return self
+
+    ones_like = inherit_unary(torch.ones_like)
+    zeros_like = inherit_unary(torch.zeros_like)
+    float = inherit_unary(T.float)
+    cpu = inherit_unary(T.cpu)
+
+    def fill_(self, value) -> TensorX:
+        return TensorX(self.data.fill_(value), self.names)
+
+    def full_like(self, value) -> TensorX:
+        return TensorX(torch.full_like(self.data, value), self.names)
+
+    def numpy(self) -> NDA:
+        return self.data.numpy()
+
+    @staticmethod
+    @typechecked
+    def max_of(inputs: List[TensorX]) -> Tuple[TensorX, TensorX]:
+        all_names = [inp.names for inp in inputs]
+        if len(set(all_names)) > 1:
+            raise TypeError(f'Names are not aligned for all inputs: {all_names}.')
+        v, i = torch.stack([tx.data for tx in inputs], dim=-1).max(dim=-1)
+        names = all_names[0]
+        v = TensorX(v, names)
+        i = TensorX(i, names)
+        return v, i
+
+    @overload
+    def max(self, name: str) -> Tuple[TensorX, TensorX]: ...
+
+    @overload
+    def max(self) -> Union[float, int, bool]:
+        """This is different from PyTorch's behavior of returning a scalar tensor."""
+
+    def max(self, name: Optional[str] = None):
+        if name is None:
+            return self.data.max().item()
+        dim = self.names.index(name)
+        v, i = self.data.max(dim=dim)
+        new_names = self.names[:dim] + self.names[dim + 1:]
+        v = TensorX(v, new_names)
+        i = TensorX(i, new_names)
+        return v, i

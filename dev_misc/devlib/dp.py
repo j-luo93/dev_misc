@@ -153,7 +153,8 @@ class Hmm(BaseDP):
 
     def __init__(self, obs: Tx, p0: Tx, tp: Tx, ep: Tx):
         self._obs = obs
-        bs, l = obs.shape
+        bs = obs.size('batch')
+        l = obs.size('l')
 
         self._G = DiGraph()
         for t in range(l):
@@ -174,7 +175,7 @@ class Hmm(BaseDP):
         first_obs = obs.select('l', 0)  # dim: batch
         pr_x0_g_y0 = ep.batched_select('x', first_obs)  # dim: y, batch
         self[HmmFState(0)] = (pr_x0_g_y0 * p0).normalize_prob('y')  # dim: y, batch
-        self[HmmBState(l - 1)] = Tx(torch.ones(bs, tp.size('y')), ['batch', 'y'])
+        self[HmmBState(l - 1)] = p0.ones_like()
 
         self._tp = tp
         self._ep = ep
@@ -217,3 +218,47 @@ class Hmm(BaseDP):
             self['b', t] = v
         else:
             raise TypeError(f'Unrecognized type "{type(state)}" for state.')
+
+
+@make_state
+class LisState:
+    i: int
+
+
+class Lis(BaseDP):
+    """Longest increasing subsequence."""
+
+    def __init__(self, a: Tx):
+        self._a = a
+        self._G = DiGraph()
+        l = a.size('l')
+
+        for i in range(l + 1):
+            self.add_node(LisState(i))
+
+        for i in range(l + 1):
+            for j in range(i):
+                self.add_decision(LisState(i), LisState(j))
+
+        self._base_states = {LisState(0)}
+        a1 = a.select('l', 0)
+        self[0] = a1.zeros_like()
+        self._a0 = a1.full_like(a.max() - 1)
+
+    @classmethod
+    def _get_state(cls, key: Union[int, LisState]) -> LisState:
+        if isinstance(key, int):
+            key = LisState(key)
+        return key
+
+    def update_state(self, state: LisState):
+        decisions = list()
+        if state.i == 0:
+            ai = self._a0
+        else:
+            ai = self._a.select('l', state.i - 1)
+        for in_state, _ in self._G.in_edges(state):
+            al = self._a.select('l', in_state.i - 1)
+            v = self[in_state.i] + (al < ai).float()
+            decisions.append(v)
+        self[state.i] = Tx.max_of(decisions)[0]
