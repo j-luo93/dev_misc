@@ -109,6 +109,15 @@ class Renamed:
         self.tx.names = self.old_names
 
 
+@typechecked
+def _stack(inputs: List[TensorX]) -> T:
+    """Used for TensorX's, returns normal tensors."""
+    all_names = [inp.names for inp in inputs]
+    if len(set(all_names)) > 1:
+        raise TypeError(f'Names are not aligned for all inputs: {all_names}.')
+    return torch.stack([tx.data for tx in inputs], dim=-1)
+
+
 class TensorX:
 
     @typechecked
@@ -215,6 +224,7 @@ class TensorX:
 
     ones_like = inherit_unary(torch.ones_like)
     zeros_like = inherit_unary(torch.zeros_like)
+    __neg__ = inherit_prop(T.__neg__)
     float = inherit_unary(T.float)
     cpu = inherit_unary(T.cpu)
 
@@ -228,13 +238,19 @@ class TensorX:
         return self.data.numpy()
 
     @staticmethod
-    @typechecked
     def max_of(inputs: List[TensorX]) -> Tuple[TensorX, TensorX]:
-        all_names = [inp.names for inp in inputs]
-        if len(set(all_names)) > 1:
-            raise TypeError(f'Names are not aligned for all inputs: {all_names}.')
-        v, i = torch.stack([tx.data for tx in inputs], dim=-1).max(dim=-1)
-        names = all_names[0]
+        stacked = _stack(inputs)
+        names = inputs[0].names
+        v, i = stacked.max(dim=-1)
+        v = TensorX(v, names)
+        i = TensorX(i, names)
+        return v, i
+
+    @staticmethod
+    def min_of(inputs: List[TensorX]) -> Tuple[TensorX, TensorX]:
+        stacked = _stack(inputs)
+        names = inputs[0].names
+        v, i = stacked.min(dim=-1)
         v = TensorX(v, names)
         i = TensorX(i, names)
         return v, i

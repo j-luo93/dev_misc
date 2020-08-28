@@ -2,7 +2,7 @@ import torch
 
 from dev_misc import TestCase, test_with_arguments
 
-from .dp import Fibonacci, Hmm, Lis
+from .dp import Cmm, Fibonacci, Hmm, Lis
 from .tensor_x import TensorX as Tx
 
 _BS = 32  # Batch size.
@@ -49,3 +49,11 @@ class TestDP(TestCase):
         dp.run()
         ans = [5]
         self.assertArrayAlmostEqual(dp[9], ans)
+
+    def test_cmm(self):
+        lengths = Tx(torch.LongTensor([[5, 4, 6, 2]]), ['batch', 'l'])
+        widths = Tx(torch.LongTensor([[4, 6, 2, 7]]), ['batch', 'l'])
+        dp = Cmm(lengths, widths)
+        dp.run()
+        ans = [158]
+        self.assertArrayAlmostEqual(dp[0, 3], ans)

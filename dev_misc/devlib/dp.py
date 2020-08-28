@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial
 from itertools import tee
-from typing import Set, Tuple, TypeVar, Union
+from typing import Dict, Set, Tuple, TypeVar, Union
 
 import torch
 from networkx import DiGraph
@@ -15,11 +16,6 @@ from .tensor_x import TensorX as Tx
 make_state = partial(dataclass, frozen=True)
 
 
-@make_state
-class FibState:
-    i: int
-
-
 class StateUnreachable(Exception):
     """Raise this if there is some unreachable state."""
 
@@ -30,19 +26,22 @@ _StateLike = TypeVar('StateLike')
 
 class BaseDP(ABC):
 
-    _G: DiGraph
-    _base_states: Set[State]
+    def __init__(self):
+        self._G = DiGraph()
+        self._base_states: Set[State] = set()
+        self._decisions: Dict[State, Set[Tuple[State]]] = defaultdict(set)
 
     def add_node(self, state: State):
         self._G.add_node(state, value=None)
 
-    # HACK(j_luo) This is a temp method. It is not exactly a decision.
     def add_decision(self, out_state: State, *in_states: State):
         if not in_states:
             raise TypeError(f'Must have at least one in state.')
 
         for in_state in in_states:
             self._G.add_edge(in_state, out_state)
+
+        self._decisions[out_state].add(in_states)
 
     @classmethod
     def _get_state(cls, key: _StateLike) -> State:
@@ -83,11 +82,16 @@ class BaseDP(ABC):
         """Update state value."""
 
 
+@make_state
+class FibState:
+    i: int
+
+
 class Fibonacci(BaseDP):
 
     def __init__(self, a0: Tx, a1: Tx, size: int):
+        super().__init__()
 
-        self._G = DiGraph()
         for i in range(size + 1):
             self.add_node(FibState(i))
 
@@ -152,11 +156,12 @@ class Hmm(BaseDP):
     """
 
     def __init__(self, obs: Tx, p0: Tx, tp: Tx, ep: Tx):
+        super().__init__()
+
         self._obs = obs
         bs = obs.size('batch')
         l = obs.size('l')
 
-        self._G = DiGraph()
         for t in range(l):
             self.add_node(HmmPMState(t))
             self.add_node(HmmFState(t))
@@ -229,8 +234,9 @@ class Lis(BaseDP):
     """Longest increasing subsequence."""
 
     def __init__(self, a: Tx):
+        super().__init__()
+
         self._a = a
-        self._G = DiGraph()
         l = a.size('l')
 
         for i in range(l + 1):
@@ -261,4 +267,56 @@ class Lis(BaseDP):
             al = self._a.select('l', in_state.i - 1)
             v = self[in_state.i] + (al < ai).float()
             decisions.append(v)
-        self[state.i] = Tx.max_of(decisions)[0]
+        self[state] = Tx.max_of(decisions)[0]
+
+
+@make_state
+class CmmState:
+    left: int
+    right: int
+
+
+class Cmm(BaseDP):
+    """Chain matrix multiplication."""
+
+    def __init__(self, lengths: Tx, widths: Tx):
+        super().__init__()
+
+        self._lengths = lengths
+        self._widths = widths
+        bs = self._lengths.size('batch')
+        l = self._lengths.size('l')
+        for i in range(l):
+            for j in range(i, l):
+                self.add_node(CmmState(i, j))
+
+        for i in range(l):
+            for j in range(i, l):
+                for k in range(i, j):
+                    self.add_decision(CmmState(i, j), CmmState(i, k), CmmState(k + 1, j))
+
+        self._base_states = set()
+        zeros = self._lengths.select('l', 0).zeros_like()
+        for i in range(l):
+            single = CmmState(i, i)
+            self._base_states.add(single)
+            self[single] = zeros
+
+    @classmethod
+    def _get_state(cls, key: Union[Tuple[int, int], CmmState]) -> CmmState:
+        if isinstance(key, tuple):
+            l, r = key
+            key = CmmState(l, r)
+        return key
+
+    def update_state(self, state: CmmState):
+        decisions = list()
+        i, j = state.left, state.right
+        # FIXME(j_luo) Use decisions for all.
+        for in_states in self._decisions[state]:
+            l_state, r_state = in_states
+            m = self._lengths.select('l', l_state.left)
+            n = self._widths.select('l', l_state.right)
+            p = self._widths.select('l', r_state.right)
+            decisions.append(self[l_state] + self[r_state] + m * n * p)
+        self[state] = Tx.min_of(decisions)[0]
