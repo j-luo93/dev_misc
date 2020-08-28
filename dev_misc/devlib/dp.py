@@ -1,0 +1,219 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from functools import partial
+from itertools import tee
+from typing import Set, Tuple, TypeVar, Union
+
+import torch
+from networkx import DiGraph
+from networkx.algorithms.dag import topological_sort
+
+from .tensor_x import Renamed
+from .tensor_x import TensorX as Tx
+
+# A decorator for creating a proper state data class.
+make_state = partial(dataclass, frozen=True)
+
+
+@make_state
+class FibState:
+    i: int
+
+
+class StateUnreachable(Exception):
+    """Raise this if there is some unreachable state."""
+
+
+State = TypeVar('State')
+_StateLike = TypeVar('StateLike')
+
+
+class BaseDP(ABC):
+
+    _G: DiGraph
+    _base_states: Set[State]
+
+    def add_node(self, state: State):
+        self._G.add_node(state, value=None)
+
+    # HACK(j_luo) This is a temp method. It is not exactly a decision.
+    def add_decision(self, out_state: State, *in_states: State):
+        if not in_states:
+            raise TypeError(f'Must have at least one in state.')
+
+        for in_state in in_states:
+            self._G.add_edge(in_state, out_state)
+
+    @classmethod
+    def _get_state(cls, key: _StateLike) -> State:
+        return key
+
+    def __getitem__(self, key: _StateLike) -> Tx:
+        cls = type(self)
+        key = cls._get_state(key)
+        return self._G.nodes[key]['value']
+
+    def __setitem__(self, key: _StateLike, value: Tx):
+        cls = type(self)
+        key = cls._get_state(key)
+        self._G.nodes[key]['value'] = value
+
+    def run(self):
+        # Run topo sort first.
+        o1, o2 = tee(topological_sort(self._G))
+
+        # Check if all end states are reached.
+        reachable = set()
+        reachable.update(self._base_states)
+        for state in o1:
+            if state not in reachable:
+                raise StateUnreachable(f'{state} unreachable.')
+            for _, out_state in self._G.edges(state):
+                reachable.add(out_state)
+
+        # Main loop.
+        for state in o2:
+            if state in self._base_states:
+                continue
+
+            self.update_state(state)
+
+    @abstractmethod
+    def update_state(self, state: State):
+        """Update state value."""
+
+
+class Fibonacci(BaseDP):
+
+    def __init__(self, a0: Tx, a1: Tx, size: int):
+
+        self._G = DiGraph()
+        for i in range(size + 1):
+            self.add_node(FibState(i))
+
+        for i in range(2, size + 1):
+            self.add_decision(FibState(i), FibState(i - 1), FibState(i - 2))
+
+        # FIXME(j_luo) add check that it's added.
+        self._base_states = {FibState(0), FibState(1)}
+        self[0] = a0
+        self[1] = a1
+
+    def update_state(self, state: FibState):
+        s = 0
+        for in_state, _ in self._G.in_edges(state):
+            s += self[in_state]
+        self[state] = s
+
+    @classmethod
+    def _get_state(cls, key: Union[int, FibState]) -> FibState:
+        if isinstance(key, int):
+            key = FibState(key)
+        return key
+
+
+@make_state
+class HmmPMState:
+    """Posterior marginal for HMM."""
+    t: int
+
+
+@make_state
+class HmmFState:
+    """Forward state for HMM."""
+    t: int
+
+
+@make_state
+class HmmBState:
+    """Backward state for HMM."""
+    t: int
+
+
+HmmState = TypeVar('HmmState', HmmPMState, HmmFState, HmmBState)
+
+
+class Hmm(BaseDP):
+    """Inference for Hmm using Forward-Backword algorithm:
+
+    Pr( y[t] | x[1:T] ) =
+    Pr( y[t] | x[1:t] ) * Pr( x[t+1:T] | y[t] ) / Z
+    = Forward( t, y[t] ) * Backward( t, y[t] ) / Z
+
+    Forward( t, y[t] ) =
+    Emission( y[t], x[t] ) * Sum_y[t-1]{ Forward( t-1, y[t-1] ) * Transition( y[t-1], y[t] ) } / Z
+    Base case:
+    Forward( 1, y[1] ) =
+    Emission( y[1], x[1] ) * p0 / Z
+
+
+    Backward( t, y[t] ) =
+    Sum_y[t+1]{ Transition( y[t], y[t+1] ) * Emission( y[t+1], x[t+1] ) * Backward( t+1, y[t+1] ) }
+    """
+
+    def __init__(self, obs: Tx, p0: Tx, tp: Tx, ep: Tx):
+        self._obs = obs
+        bs, l = obs.shape
+
+        self._G = DiGraph()
+        for t in range(l):
+            self.add_node(HmmPMState(t))
+            self.add_node(HmmFState(t))
+            self.add_node(HmmBState(t))
+
+        for t in range(l):
+            self.add_decision(HmmPMState(t), HmmFState(t), HmmBState(t))
+            # FIXME(j_luo) Add boundary check?
+            if t > 0:
+                self.add_decision(HmmFState(t), HmmFState(t - 1))
+            if t < l - 1:
+                self.add_decision(HmmBState(t), HmmBState(t + 1))
+
+        self._base_states = {HmmFState(0), HmmBState(l - 1)}
+
+        first_obs = obs.select('l', 0)  # dim: batch
+        pr_x0_g_y0 = ep.batched_select('x', first_obs)  # dim: y, batch
+        self[HmmFState(0)] = (pr_x0_g_y0 * p0).normalize_prob('y')  # dim: y, batch
+        self[HmmBState(l - 1)] = Tx(torch.ones(bs, tp.size('y')), ['batch', 'y'])
+
+        self._tp = tp
+        self._ep = ep
+
+    @classmethod
+    def _get_state(cls, key: Union[Tuple[str, int], HmmState]) -> HmmState:
+        if isinstance(key, tuple):
+            if len(key) != 2:
+                raise TypeError(f'Tuple key must be of length 2.')
+            name, t = key
+            if name == 'pm':
+                state_cls = HmmPMState
+            elif name == 'f':
+                state_cls = HmmFState
+            elif name == 'b':
+                state_cls = HmmBState
+            else:
+                raise ValueError(f'Unrecognized value "{name}" for name.')
+            key = state_cls(t)
+        return key
+
+    def update_state(self, state: HmmState):
+        t = state.t
+        if isinstance(state, HmmPMState):
+            v = (self['f', t] * self['b', t]).normalize_prob('y')
+            self['pm', t] = v
+        elif isinstance(state, HmmFState):
+            curr_obs = self._obs.select('l', t)
+            pr_xt_g_y = self._ep.batched_select('x', curr_obs)
+            f = self['f', t - 1]
+            v = (f.contract(self._tp, 'y').rename_({'yn': 'y'}) * pr_xt_g_y).normalize_prob('y')
+            self['f', t] = v
+        elif isinstance(state, HmmBState):
+            last_obs = self._obs.select('l', t + 1)
+            pr_xtp1_g_y = self._ep.batched_select('x', last_obs)
+            b = self['b', t + 1]
+            take_yn = {'y': 'yn'}
+            with Renamed(pr_xtp1_g_y, take_yn), Renamed(b, take_yn):
+                v = self._tp.contract(pr_xtp1_g_y * b, 'yn').normalize_prob('y')
+            self['b', t] = v
+        else:
+            raise TypeError(f'Unrecognized type "{type(state)}" for state.')
