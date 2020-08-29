@@ -320,3 +320,60 @@ class Cmm(BaseDP):
             p = self._widths.select('l', r_state.right)
             decisions.append(self[l_state] + self[r_state] + m * n * p)
         self[state] = Tx.min_of(decisions)[0]
+
+
+@make_state
+class EditDistState:  # FIXME(j_luo) Automatic state register?
+    first: int
+    second: int
+
+
+class EditDist(BaseDP):
+
+    def __init__(self, string0: Tx, string1: Tx, length0: Tx, length1: Tx):
+        super().__init__()
+
+        bs = string0.size('batch')
+        l = string0.size("l")
+
+        self._string0 = string0
+        self._string1 = string1
+        self._length0 = length0
+        self._length1 = length1
+
+        for i in range(l + 1):
+            for j in range(l + 1):
+                self.add_node(EditDistState(i, j))
+
+        for i in range(l + 1):
+            for j in range(l + 1):
+                if i > 0:
+                    # FIXME(j_luo) Decision should have types/kinds.
+                    self.add_decision(EditDistState(i, j), EditDistState(i - 1, j))
+                if j > 0:
+                    self.add_decision(EditDistState(i, j), EditDistState(i, j - 1))
+                if i > 0 and j > 0:
+                    self.add_decision(EditDistState(i, j), EditDistState(i - 1, j - 1))
+
+        self._base_states = {EditDistState(0, 0)}
+        self[0, 0] = self._length0.zeros_like()
+
+    @classmethod
+    def _get_state(cls, key: Union[Tuple[int, int], EditDistState]):
+        if isinstance(key, tuple):
+            first, second = key
+            return EditDistState(first, second)
+        return key
+
+    def update_state(self, state: EditDistState):
+        decisions = list()
+        i, j = state.first, state.second
+        for in_states in self._decisions[state]:
+            in_state = in_states[0]
+            if in_state.first == i or in_state.second == j:
+                decisions.append(self[in_state] + 1)
+            else:
+                s0 = self._string0.select('l', i - 1)
+                s1 = self._string1.select('l', j - 1)
+                decisions.append(self[in_state] + (s0 == s1).float())
+        self[state] = Tx.min_of(decisions)[0]

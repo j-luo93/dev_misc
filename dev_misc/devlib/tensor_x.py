@@ -131,6 +131,7 @@ class TensorX:
     __sub__ = elemwise(T.__sub__)
     __gt__ = elemwise(T.__gt__)
     __lt__ = elemwise(T.__lt__)
+    __eq__ = elemwise(T.__eq__)
     __radd__ = elemwise(T.__radd__)
 
     ndim = inherit_prop(T.ndim)
