@@ -60,10 +60,14 @@ class TestDP(TestCase):
 
     def test_ed(self):
         string0 = Tx(torch.LongTensor([[1, 2, 5, 6, 7, 3], [1, 2, 3, 4, 0, 0]]), ['batch', 'l'])
-        string1 = Tx(torch.LongTensor([[1, 2, 3, 6, 6, 3], [1, 4, 0, 0, 0, 0]]), ['batch', 'l'])
+        string1 = Tx(torch.LongTensor([[3, 3, 3, 6, 6, 3], [1, 4, 0, 0, 0, 0]]), ['batch', 'l'])
         length0 = Tx(torch.LongTensor([6, 4]), ['batch'])
         length1 = Tx(torch.LongTensor([6, 2]), ['batch'])
         dp = EditDist(string0, string1, length0, length1)
         dp.run()
-        self.assertEqual(dp[6, 6].data[0].item(), 2)
-        self.assertEqual(dp[4, 2].data[0].item(), 2)
+        self.assertEqual(dp[6, 6].data[0].item(), 4)
+        self.assertEqual(dp[4, 2].data[1].item(), 2)
+        ret = dp.get_results()
+
+        ans = [4, 2]
+        self.assertArrayAlmostEqual(ret.data, ans)

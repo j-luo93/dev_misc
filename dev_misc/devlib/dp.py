@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import partial
+from functools import partial, wraps
 from itertools import tee
 from typing import Dict, Set, Tuple, TypeVar, Union
 
@@ -24,12 +24,35 @@ State = TypeVar('State')
 _StateLike = TypeVar('StateLike')
 
 
+def use_grad_switch(func):
+
+    @wraps(func)
+    def wrapped(self, *args, **kwargs):
+        if self.grad_enabled:
+            with torch.enable_grad():
+                return func(self, *args, **kwargs)
+        else:
+            with torch.no_grad():
+                return func(self, *args, **kwargs)
+
+    return wrapped
+
+
 class BaseDP(ABC):
 
-    def __init__(self):
+    def __init__(self, grad_enabled: bool = False):
         self._G = DiGraph()
         self._base_states: Set[State] = set()
         self._decisions: Dict[State, Set[Tuple[State]]] = defaultdict(set)
+        self._grad_enabled = grad_enabled
+
+    # NOTE(j_luo) For some reason, tensors stored in `G` are not collected and freed (probably due to circular reference).
+    def __del__(self):
+        self._G.clear()
+
+    @property
+    def grad_enabled(self) -> bool:
+        return self._grad_enabled
 
     def add_node(self, state: State):
         self._G.add_node(state, value=None)
@@ -57,6 +80,7 @@ class BaseDP(ABC):
         key = cls._get_state(key)
         self._G.nodes[key]['value'] = value
 
+    @use_grad_switch
     def run(self):
         # Run topo sort first.
         o1, o2 = tee(topological_sort(self._G))
@@ -89,8 +113,8 @@ class FibState:
 
 class Fibonacci(BaseDP):
 
-    def __init__(self, a0: Tx, a1: Tx, size: int):
-        super().__init__()
+    def __init__(self, a0: Tx, a1: Tx, size: int, grad_enabled: bool = False):
+        super().__init__(grad_enabled)
 
         for i in range(size + 1):
             self.add_node(FibState(i))
@@ -155,8 +179,8 @@ class Hmm(BaseDP):
     Sum_y[t+1]{ Transition( y[t], y[t+1] ) * Emission( y[t+1], x[t+1] ) * Backward( t+1, y[t+1] ) }
     """
 
-    def __init__(self, obs: Tx, p0: Tx, tp: Tx, ep: Tx):
-        super().__init__()
+    def __init__(self, obs: Tx, p0: Tx, tp: Tx, ep: Tx, grad_enabled: bool = False):
+        super().__init__(grad_enabled)
 
         self._obs = obs
         bs = obs.size('batch')
@@ -233,8 +257,8 @@ class LisState:
 class Lis(BaseDP):
     """Longest increasing subsequence."""
 
-    def __init__(self, a: Tx):
-        super().__init__()
+    def __init__(self, a: Tx, grad_enabled: bool = False):
+        super().__init__(grad_enabled)
 
         self._a = a
         l = a.size('l')
@@ -279,8 +303,8 @@ class CmmState:
 class Cmm(BaseDP):
     """Chain matrix multiplication."""
 
-    def __init__(self, lengths: Tx, widths: Tx):
-        super().__init__()
+    def __init__(self, lengths: Tx, widths: Tx, grad_enabled: bool = False):
+        super().__init__(grad_enabled)
 
         self._lengths = lengths
         self._widths = widths
@@ -330,23 +354,24 @@ class EditDistState:  # FIXME(j_luo) Automatic state register?
 
 class EditDist(BaseDP):
 
-    def __init__(self, string0: Tx, string1: Tx, length0: Tx, length1: Tx):
-        super().__init__()
+    def __init__(self, string0: Tx, string1: Tx, length0: Tx, length1: Tx, grad_enabled: bool = False):
+        super().__init__(grad_enabled)
 
         bs = string0.size('batch')
-        l = string0.size("l")
+        l0 = string0.size("l")
+        l1 = string1.size('l')
 
         self._string0 = string0
         self._string1 = string1
         self._length0 = length0
         self._length1 = length1
 
-        for i in range(l + 1):
-            for j in range(l + 1):
+        for i in range(l0 + 1):
+            for j in range(l1 + 1):
                 self.add_node(EditDistState(i, j))
 
-        for i in range(l + 1):
-            for j in range(l + 1):
+        for i in range(l0 + 1):
+            for j in range(l1 + 1):
                 if i > 0:
                     # FIXME(j_luo) Decision should have types/kinds.
                     self.add_decision(EditDistState(i, j), EditDistState(i - 1, j))
@@ -375,5 +400,23 @@ class EditDist(BaseDP):
             else:
                 s0 = self._string0.select('l', i - 1)
                 s1 = self._string1.select('l', j - 1)
-                decisions.append(self[in_state] + (s0 == s1).float())
+                decisions.append(self[in_state] + (s0 != s1).float())
         self[state] = Tx.min_of(decisions)[0]
+
+    @use_grad_switch
+    def make_grid(self) -> Tx:
+        l0 = self._string0.size('l')
+        l1 = self._string1.size('l')
+        grid = list()
+        for i in range(l0 + 1):
+            for j in range(l1 + 1):
+                grid.append(self[i, j])
+        grid = Tx.stack(grid, 'grid')
+        grid = grid.unflatten('grid', [('src_l', l0 + 1), ('tgt_l', l1 + 1)])
+        return grid
+
+    @use_grad_switch
+    def get_results(self) -> Tx:
+        grid = self.make_grid()
+        ret = grid.each_select({'src_l': self._length0, 'tgt_l': self._length1})
+        return ret

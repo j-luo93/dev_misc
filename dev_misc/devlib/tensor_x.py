@@ -9,6 +9,8 @@ from typeguard import typechecked
 
 from dev_misc import LT, NDA
 
+from .named_tensor import NoName
+
 T = torch.Tensor
 
 
@@ -21,23 +23,14 @@ def elemwise(func):
     @wraps(func)
     @typechecked
     def wrapped(self: TensorX, other: Union[TensorX, float, int, float]) -> TensorX:
-        names = self.names
         if isinstance(other, TensorX):
-            ns0 = set(self.names)
-            ns1 = set(other.names)
-            if ns0 <= ns1:
-                data0 = self.align_as(other).data
-                data1 = other.data
-                names = other.names
-            elif ns0 > ns1:
-                data0 = self.data
-                data1 = other.align_as(self).data
-            else:
+            if not self.broadcastable_to(other) and not other.broadcastable_to(self):
                 raise NameMismatch(f'Names mismatch for element-wise op {func}, got {self.names} and {other.names}.')
-            ret = func(data0, data1)
+            self, other = TensorX.broadcast_tensors(self, other)
+            ret = func(self.data, other.data)
         else:
             ret = func(self.data, other)
-        return TensorX(ret, names)
+        return TensorX(ret, self.names)
 
     return wrapped
 
@@ -132,6 +125,7 @@ class TensorX:
     __gt__ = elemwise(T.__gt__)
     __lt__ = elemwise(T.__lt__)
     __eq__ = elemwise(T.__eq__)
+    __ne__ = elemwise(T.__ne__)
     __radd__ = elemwise(T.__radd__)
 
     ndim = inherit_prop(T.ndim)
@@ -164,6 +158,32 @@ class TensorX:
         dim = self.names.index(name)
         new_names = self.names[:dim] + ('batch', ) + self.names[dim + 1:]
         return TensorX(self.data.index_select(dim, index.data), new_names)
+
+    @typechecked
+    def each_select(self, indices: Dict[str, TensorX]) -> TensorX:
+        if 'batch' not in self.names:
+            raise TypeError(f'Can only call `each_select` on a tensor with "batch" dimension.')
+        bs = self.size('batch')
+        for name, index in indices.items():
+            if name == 'batch':
+                raise TypeError(f'Cannot select on the "batch" dimension.')
+        # Align all indices.
+        aligned_index_names = TensorX.broadcast_names(*indices.values())
+        if 'batch' not in aligned_index_names:
+            aligned_index_names = ('batch', ) + aligned_index_names
+        key = [torch.arange(bs, dtype=torch.long)] + [slice(None, None) for _ in range(self.ndim - 1)]
+        for name, index in indices.items():
+            index = index.align_to(*aligned_index_names)
+            dim = self.names.index(name)
+            key[dim] = index.data
+
+        new_names = list(aligned_index_names)
+        for name in self.names:
+            if name != 'batch' and name not in indices:
+                new_names.append(name)
+        with NoName(self.data, *key):
+            ret = self.data[key]
+        return TensorX(ret, new_names)
 
     @typechecked
     def align_as(self, other: TensorX) -> TensorX:
@@ -238,6 +258,67 @@ class TensorX:
     def numpy(self) -> NDA:
         return self.data.numpy()
 
+    @overload
+    def max(self, name: str) -> Tuple[TensorX, TensorX]: ...
+
+    @overload
+    def max(self) -> Union[float, int, bool]:
+        """This is different from PyTorch's behavior of returning a scalar tensor."""
+
+    def max(self, name: Optional[str] = None):
+        if name is None:
+            return self.data.max().item()
+        dim = self.names.index(name)
+        v, i = self.data.max(dim=dim)
+        new_names = self.names[:dim] + self.names[dim + 1:]
+        v = TensorX(v, new_names)
+        i = TensorX(i, new_names)
+        return v, i
+
+    @typechecked
+    def unflatten(self, name: str, sizes: List[Tuple[str, int]]) -> TensorX:
+        with Named(self.data, self.names):
+            ret = self.data.unflatten(name, sizes)
+            ret_names = ret.names
+            ret.rename_(None)
+        return TensorX(ret, ret_names)
+
+    @typechecked
+    def flatten(self, old_names: Sequence[str], new_name: str) -> TensorX:
+        old_names = list(old_names)
+        if not set(old_names) <= set(self.names):
+            raise ValueError(f'Some names in {old_names} are not found in {self.names}.')
+        new_names = [name for name in self.names if name not in old_names]
+        aligned_names = new_names[:]
+        for i, name in enumerate(self.names):
+            if name in old_names:
+                break
+        aligned_names = aligned_names[:i] + old_names + aligned_names[i:]
+        aligned = self.align_to(*aligned_names)
+        with Named(aligned.data, self.names):
+            ret = aligned.data.flatten(old_names, new_name)
+            ret_names = ret.names
+        ret.rename_(None)
+        return TensorX(ret, ret_names)
+
+    @typechecked
+    def expand(self, sizes: Dict[str, int]) -> TensorX:
+        if not set(sizes.keys()) <= set(self.names):
+            raise ValueError(f'Unrecognized name in {list(sizes.keys())} from {self.shape}.')
+
+        for name, size in zip(self.names, self.shape):
+            if name in sizes and sizes[name] > 1 and size > 1:
+                raise ValueError(f'Expanding on a dimension with more than 1 element is disallowed.')
+
+        expanded_sizes = [sizes.get(name, -1) for name in self.names]
+        return TensorX(self.data.expand(*expanded_sizes), self.names)
+
+    @typechecked
+    def broadcastable_to(self, other: TensorX) -> bool:
+        return set(self.names) <= set(other.names)
+
+    # ----------------------- Static methods ----------------------- #
+
     @staticmethod
     def max_of(inputs: List[TensorX]) -> Tuple[TensorX, TensorX]:
         stacked = _stack(inputs)
@@ -256,19 +337,32 @@ class TensorX:
         i = TensorX(i, names)
         return v, i
 
-    @overload
-    def max(self, name: str) -> Tuple[TensorX, TensorX]: ...
+    @staticmethod
+    def stack(inputs: List[TensorX], name: str) -> TensorX:
+        stacked = _stack(inputs)
+        names = inputs[0].names + (name, )
+        return TensorX(stacked, names)
 
-    @overload
-    def max(self) -> Union[float, int, bool]:
-        """This is different from PyTorch's behavior of returning a scalar tensor."""
+    @staticmethod
+    def broadcast_names(*inputs: TensorX) -> Tuple[str]:
+        ret = list()
+        for inp in inputs:
+            for name in inp.names:
+                if name not in ret:
+                    ret.append(name)
+        return tuple(ret)
 
-    def max(self, name: Optional[str] = None):
-        if name is None:
-            return self.data.max().item()
-        dim = self.names.index(name)
-        v, i = self.data.max(dim=dim)
-        new_names = self.names[:dim] + self.names[dim + 1:]
-        v = TensorX(v, new_names)
-        i = TensorX(i, new_names)
-        return v, i
+    @staticmethod
+    def broadcast_tensors(*inputs: TensorX, expand: bool = False) -> List[TensorX]:
+        names = TensorX.broadcast_names(*inputs)
+        outputs = [inp.align_to(*names) for inp in inputs]
+        if expand:
+            sizes = dict()
+            for inp in inputs:
+                for name in inp.names:
+                    if name in sizes and inp.size(name) != sizes[name]:
+                        raise RuntimeError(
+                            f'Not all named sizes match for the inputs: {[inp.names for inp in inputs]}, {[inp.size() for inp in inputs]}')
+                    sizes[name] = inp.size(name)
+            outputs = [out.expand(sizes) for out in outputs]
+        return outputs
