@@ -354,7 +354,7 @@ class EditDistState:  # FIXME(j_luo) Automatic state register?
 
 class EditDist(BaseDP):
 
-    def __init__(self, string0: Tx, string1: Tx, length0: Tx, length1: Tx, grad_enabled: bool = False):
+    def __init__(self, string0: Tx, string1: Tx, length0: Tx, length1: Tx, penalty: Tx = None, grad_enabled: bool = False):
         super().__init__(grad_enabled)
 
         bs = string0.size('batch')
@@ -365,6 +365,7 @@ class EditDist(BaseDP):
         self._string1 = string1
         self._length0 = length0
         self._length1 = length1
+        self._penalty = penalty
 
         for i in range(l0 + 1):
             for j in range(l1 + 1):
@@ -400,7 +401,12 @@ class EditDist(BaseDP):
             else:
                 s0 = self._string0.select('l', i - 1)
                 s1 = self._string1.select('l', j - 1)
-                decisions.append(self[in_state] + (s0 != s1).float())
+                if self._penalty is not None:
+                    penalty = self._penalty.rename(None)[s0.data.rename(None), s1.data.rename(None)]
+                    penalty = Tx(penalty, ['batch'])
+                else:
+                    penalty = (s0 != s1).float()
+                decisions.append(self[in_state] + penalty)
         self[state] = Tx.min_of(decisions)[0]
 
     @use_grad_switch
