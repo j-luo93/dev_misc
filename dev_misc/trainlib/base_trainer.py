@@ -120,7 +120,7 @@ class BaseTrainer(ABC):
                 init_func(param, *args, **kwargs)
                 num_init += param.numel()
             total += param.numel()
-        logging.info(f'{num_init}/{total} trainable parameters initialized using {method}.')
+        logging.imp(f'{num_init}/{total} trainable parameters initialized using {method}.')
 
     def train(self, dl_reg: BaseDataLoaderRegistry):
         metrics = Metrics()
