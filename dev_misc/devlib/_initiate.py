@@ -39,7 +39,10 @@ class DirAlreadyExists(Exception):
     """Raise this error if the specified `log_dir` already exists."""
 
 
-def initiate(*registries: Registry, logger=False, log_dir=False, log_level=False, gpus=False, random_seed=False, commit_id=False, stacklevel=1):
+def initiate(*registries: Registry,
+             logger=False, log_dir=False, log_level=False,
+             gpus=False, random_seed=False, commit_id=False,
+             stacklevel=1):
     """
     This function does a few things.
     1. Hook registries to arglib.

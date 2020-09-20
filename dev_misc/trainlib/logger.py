@@ -4,10 +4,11 @@ from datetime import timedelta
 from functools import wraps
 from inspect import signature
 
+from colorlog import TTYColoredFormatter
+
+from dev_misc.utils import is_main_process
 
 # TODO(j_luo) Migrate to loguru.
-
-from colorlog import TTYColoredFormatter
 
 
 def log_this(func=None, *, log_level='DEBUG', msg='', arg_list=None):
@@ -122,7 +123,7 @@ def create_logger(file_path=None, log_level='INFO'):
     """
     Create a logger.
     """
-    # create console handler and set level to info
+    # create console handler and set level to info.
     console_handler = logging.StreamHandler()
     # create log formatter
     colorlog_formatter = LogFormatter(stream=console_handler.stream)
@@ -134,7 +135,8 @@ def create_logger(file_path=None, log_level='INFO'):
     logger.handlers = []
     logger.setLevel(log_level)
     logger.propagate = False
-    logger.addHandler(console_handler)
+    if is_main_process():
+        logger.addHandler(console_handler)
     if file_path:
         # create file handler and set level to debug
         file_handler = logging.FileHandler(file_path, "a")

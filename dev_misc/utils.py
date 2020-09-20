@@ -5,6 +5,7 @@ import logging
 import sys
 import warnings
 from functools import lru_cache, reduce, wraps
+from multiprocessing import current_process
 from operator import iadd, ior
 from typing import (Callable, ClassVar, Dict, Iterable, Iterator, List,
                     Mapping, Optional)
@@ -99,7 +100,10 @@ def pbar(iterable: Iterable, desc: Optional[str] = None, text_only: bool = False
 
     iterator = iter(iterable)
 
-    if text_only:
+    # Do not do anything else if this is a child process.
+    if current_process().name != 'MainProcess':
+        yield from iterator
+    elif text_only:
         for i, item in enumerate(iterator, 1):
             yield item
             print(f'\r{i}', end='')
@@ -274,3 +278,7 @@ class ScopedCache:
 
     def __exit__(self, exc_type, exc_value, traceback):
         _cache_switches.switch_off(self._switch)
+
+
+def is_main_process() -> bool:
+    return current_process().name == 'MainProcess'

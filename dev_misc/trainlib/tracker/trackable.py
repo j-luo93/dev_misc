@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import ClassVar
-from typing import Optional
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, List, Optional, Tuple, overload
+from typing import (Any, ClassVar, Dict, Iterator, List, Optional, Tuple,
+                    overload)
 
-from dev_misc.utils import manager
+from dev_misc.utils import is_main_process, manager
 
 
 class PBarOutOfBound(Exception):
@@ -60,7 +59,11 @@ class CountTrackable(BaseTrackable):
     def __init__(self, name: str, total: int, endless: bool = False, **kwargs):
         self._total = total
         self._endless = endless
-        self._pbar = manager.counter(desc=name, total=total, leave=False)
+        # Only add a pbar in main process. Otherwise use a simpler counter.
+        if is_main_process():
+            self._pbar = manager.counter(desc=name, total=total, leave=False)
+        else:
+            self._count = 0
         super().__init__(name, **kwargs)
 
     @property
@@ -73,35 +76,45 @@ class CountTrackable(BaseTrackable):
 
         while True:
             try:
-                self._pbar.update()
+                if is_main_process():
+                    self._pbar.update()
+                else:
+                    self._count += 1
                 break
             except RuntimeError:
                 logging.exception('Encountered some issue when updating the progress bar. Waiting to retry again')
                 time.sleep(1)
 
-        if self._total is not None and self._pbar.count > self._total:
+        if self._total is not None and self.value > self._total:
             raise PBarOutOfBound(f'Progress bar ran out of bound.')
         for trackable in self.children:
             trackable.reset()
         return True
 
     def reset(self):
-        self._pbar.start = time.time()
-        self._pbar.count = 0
-        self._pbar.refresh()
+        if is_main_process():
+            self._pbar.start = time.time()
+            self._pbar.count = 0
+            self._pbar.refresh()
+        else:
+            self._count = 0
 
     @property
     def value(self):
-        return self._pbar.count
+        if is_main_process():
+            return self._pbar.count
+        else:
+            return self._count
 
     @property
     def is_finished(self) -> bool:
-        return self._total and self._pbar.count >= self._total
+        return self._total and self.value >= self._total
 
     def close(self):
         """Remove progress bar."""
         # FIXME(j_luo) It seems that enlighten is still buggy?
-        manager.remove(self._pbar)
+        if is_main_process():
+            manager.remove(self._pbar)
 
 
 class MaxTrackable(BaseTrackable):
