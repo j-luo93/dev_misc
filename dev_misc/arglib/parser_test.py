@@ -1,6 +1,8 @@
 import sys
 import unittest.mock as mock
 from copy import deepcopy
+from tempfile import NamedTemporaryFile
+import pickle
 from unittest import TestCase
 
 from .argument import ChoiceNotAllowed, MismatchedNArgs
@@ -307,3 +309,14 @@ class TestParser(TestCase):
 
         with self.assertRaises(CheckFailed):
             _parse('--second a')
+
+    def test_pickle(self):
+        add_argument('first', default='a')
+        _parse('--first b')
+        # with NamedTemporaryFile(mode='w+b') as fout:
+        with open('tmp.pkl', 'wb') as fout:
+            pickle.dump(g, fout)
+            # fout.seek(0)
+            # new_g = pickle.load(fout)
+        new_g = pickle.load(open('tmp.pkl', 'rb'))
+        self.assertEqual(new_g.first, 'b')

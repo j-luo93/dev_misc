@@ -385,7 +385,7 @@ class _Repository:
         return g
 
 
-SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items', 'groups']
+SUPPORTED_VIEW_ATTRS = ['keys', 'values', 'items', 'groups', '__setstate__', '__getstate__']
 SUPPORTED_VIEW_MAGIC = ['__contains__', '__iter__']
 
 
@@ -395,7 +395,6 @@ def add_magic(cls):
     return cls
 
 
-# IDEA(j_luo) Try subclassing dict directly or use a proxy?
 @add_magic
 class _RepositoryView:
 
@@ -406,6 +405,10 @@ class _RepositoryView:
         return self._attr_dict
 
     def load_state_dict(self, state_dict, keep_new: bool = False):
+        # FIXME(j_luo) This is very hacky. Used by pickle.
+        if not hasattr(self, '_attr_dict'):
+            self._attr_dict = dict()
+
         # Load _shared_state.
         if keep_new:
             # Keep new CLI commands.
@@ -419,11 +422,14 @@ class _RepositoryView:
         for arg in self._attr_dict.values():
             _Repository._arg_trie[arg.name] = arg
 
+    __getstate__ = state_dict
+    __setstate__ = load_state_dict
+
     def __getattribute__(self, attr):
         try:
             return super().__getattribute__(attr)
         except AttributeError:
-            proxy = self._attr_dict
+            proxy = super().__getattribute__('_attr_dict')
             if attr in SUPPORTED_VIEW_ATTRS:
                 return getattr(proxy, attr)
             return proxy[attr].value
