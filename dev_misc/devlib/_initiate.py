@@ -4,7 +4,9 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
+
+import torch
 
 from dev_misc.arglib import (Registry, add_argument, add_registry, g,
                              get_configs, parse_args, set_argument, show_args)
@@ -78,8 +80,14 @@ class Initiator:
         self.random_seed = random_seed
         self.gpus = gpus
 
-    def run(self):
-        parse_args()
+    def run(self, saved_g_path: Optional[str] = None):
+        # Use saved g values if provided.
+        if saved_g_path:
+            state_dict = torch.load(saved_g_path)
+            g.load_state_dict(state_dict)
+        # Otherwise parse them.
+        else:
+            parse_args()
         # parse_args(known_only=True)
 
         # Set an environment variable.
@@ -125,4 +133,5 @@ class Initiator:
         if self.random_seed:
             set_random_seeds(g.random_seed)
 
-        show_args()
+        save_to = g.log_dir / 'hparams.pth' if self.log_dir and not saved_g_path else None
+        show_args(save_to=save_to)

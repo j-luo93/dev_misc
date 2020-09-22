@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from typing import (Any, Callable, ClassVar, Dict, List, Optional, Union,
                     no_type_check_decorator)
 
+import torch
 from pytrie import SortedStringTrie
 from typeguard import typechecked
 
@@ -215,8 +216,10 @@ def get_configs():
     return repo.configs
 
 
-def show_args(log_also=True, and_exit=False):
+def show_args(log_also=True, and_exit=False, save_to: str = None):
     _print_all_args(log_also=log_also, and_exit=and_exit)
+    if save_to:
+        torch.save(g.state_dict(), save_to)
 
 
 def disable_duplicate_check():
