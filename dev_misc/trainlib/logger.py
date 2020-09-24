@@ -6,7 +6,7 @@ from inspect import signature
 
 from colorlog import TTYColoredFormatter
 
-from dev_misc.utils import is_main_process
+from dev_misc.utils import is_main_process_and_thread
 
 # TODO(j_luo) Migrate to loguru.
 
@@ -135,7 +135,7 @@ def create_logger(file_path=None, log_level='INFO'):
     logger.handlers = []
     logger.setLevel(log_level)
     logger.propagate = False
-    if is_main_process():
+    if is_main_process_and_thread():
         logger.addHandler(console_handler)
     if file_path:
         # create file handler and set level to debug

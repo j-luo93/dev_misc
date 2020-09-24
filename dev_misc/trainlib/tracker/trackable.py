@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import (Any, ClassVar, Dict, Iterator, List, Optional, Tuple,
                     overload)
 
-from dev_misc.utils import is_main_process, manager
+from dev_misc.utils import is_main_process_and_thread, manager
 
 
 class PBarOutOfBound(Exception):
@@ -60,7 +60,7 @@ class CountTrackable(BaseTrackable):
         self._total = total
         self._endless = endless
         # Only add a pbar in main process. Otherwise use a simpler counter.
-        if is_main_process():
+        if is_main_process_and_thread():
             self._pbar = manager.counter(desc=name, total=total, leave=False)
         else:
             self._count = 0
@@ -76,7 +76,7 @@ class CountTrackable(BaseTrackable):
 
         while True:
             try:
-                if is_main_process():
+                if is_main_process_and_thread():
                     self._pbar.update()
                 else:
                     self._count += 1
@@ -92,7 +92,7 @@ class CountTrackable(BaseTrackable):
         return True
 
     def reset(self):
-        if is_main_process():
+        if is_main_process_and_thread():
             self._pbar.start = time.time()
             self._pbar.count = 0
             self._pbar.refresh()
@@ -101,7 +101,7 @@ class CountTrackable(BaseTrackable):
 
     @property
     def value(self):
-        if is_main_process():
+        if is_main_process_and_thread():
             return self._pbar.count
         else:
             return self._count
@@ -113,7 +113,7 @@ class CountTrackable(BaseTrackable):
     def close(self):
         """Remove progress bar."""
         # FIXME(j_luo) It seems that enlighten is still buggy?
-        if is_main_process():
+        if is_main_process_and_thread():
             manager.remove(self._pbar)
 
 

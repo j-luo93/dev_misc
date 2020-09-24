@@ -97,7 +97,7 @@ class Initiator:
 
         # log_dir would be automatically set as follows if it is not specified manually:
         # ./log/<date>/<config_class_name>[-<message>]/<timestamp>
-        if self.log_dir:
+        if self.log_dir and not saved_g_path:  # Skip this if loading from g.
             if g.log_dir:
                 try:
                     g.log_dir.mkdir(parents=True)
@@ -124,7 +124,7 @@ class Initiator:
                         break
 
         # Create a logger.
-        if self.logger:
+        if self.logger:# and not saved_g_path:  # Skip this if loading from g.
             file_path = Path(g.log_dir) / 'log' if self.log_dir else None
             log_level = g.log_level if self.log_level else 'INFO'
             create_logger(file_path=file_path, log_level=log_level)

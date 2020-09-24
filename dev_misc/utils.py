@@ -7,6 +7,7 @@ import warnings
 from functools import lru_cache, reduce, wraps
 from multiprocessing import current_process
 from operator import iadd, ior
+from threading import current_thread, main_thread
 from typing import (Callable, ClassVar, Dict, Iterable, Iterator, List,
                     Mapping, Optional)
 
@@ -101,7 +102,7 @@ def pbar(iterable: Iterable, desc: Optional[str] = None, text_only: bool = False
     iterator = iter(iterable)
 
     # Do not do anything else if this is a child process.
-    if current_process().name != 'MainProcess':
+    if not is_main_process_and_thread():
         yield from iterator
     elif text_only:
         for i, item in enumerate(iterator, 1):
@@ -280,5 +281,5 @@ class ScopedCache:
         _cache_switches.switch_off(self._switch)
 
 
-def is_main_process() -> bool:
-    return current_process().name == 'MainProcess'
+def is_main_process_and_thread() -> bool:
+    return current_process().name == 'MainProcess' and current_thread() is main_thread()
