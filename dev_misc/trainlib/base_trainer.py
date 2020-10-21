@@ -23,6 +23,23 @@ class Callback:
     func: Callable
 
 
+def init_params(model, method, *args, **kwargs) -> Tuple[int, int]:
+    m2f = {
+        'xavier_normal': xavier_normal_,
+        'xavier_uniform': xavier_uniform_,
+        'uniform': uniform_
+    }
+    init_func = m2f[method]
+    total = 0
+    num_init = 0
+    for param in get_trainable_params(model, named=False):
+        if param.dim() == 2:
+            init_func(param, *args, **kwargs)
+            num_init += param.numel()
+        total += param.numel()
+    return num_init, total
+
+
 class BaseTrainer(ABC):
     # TODO(j_luo) Refactor this so that everything is a callback, and subclass this by implementing the basic workflow. Note that metric writers are observers.
     # TODO(j_luo) Make this stateless?
@@ -107,19 +124,7 @@ class BaseTrainer(ABC):
         self.lr_scheduler = scheduler_cls(self.optimizer, **kwargs)
 
     def init_params(self, method, *args, **kwargs):
-        m2f = {
-            'xavier_normal': xavier_normal_,
-            'xavier_uniform': xavier_uniform_,
-            'uniform': uniform_
-        }
-        init_func = m2f[method]
-        total = 0
-        num_init = 0
-        for param in get_trainable_params(self.model, named=False):
-            if param.dim() == 2:
-                init_func(param, *args, **kwargs)
-                num_init += param.numel()
-            total += param.numel()
+        num_init, total = init_params(self.model, method, *args, **kwargs)
         logging.imp(f'{num_init}/{total} trainable parameters initialized using {method}.')
 
     def train(self, dl_reg: BaseDataLoaderRegistry):

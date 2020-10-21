@@ -78,12 +78,21 @@ class BaseDataLoaderRegistry(ABC):
         else:
             raise TypeError(f'Unsupported indexing with type "{type(name_or_setting)}".')
 
-    def get_loaders_by_name(self, name_check: Callable[str, bool]) -> Dict[str, BaseDataLoader]:
-        ret = dict()
-        for name, dl in self._data_loaders.items():
-            if name_check(name):
-                ret[name] = dl
-        return ret
+    @overload
+    def get_loaders_by_name(self, name: str) -> BaseDataLoader: ...
+
+    @overload
+    def get_loaders_by_name(self, name_check: Callable[str, bool]) -> Dict[str, BaseDataLoader]: ...
+
+    def get_loaders_by_name(self, name_or_check_func):
+        if isinstance(name_or_check_func, str):
+            return self._data_loaders[name_or_check_func]
+        else:
+            ret = dict()
+            for name, dl in self._data_loaders.items():
+                if name_or_check_func(name):
+                    ret[name] = dl
+            return ret
 
     def get_setting_by_name(self, name: str) -> BaseSetting:
         return self._settings[name]
