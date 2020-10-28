@@ -15,6 +15,7 @@ from .metrics import Metrics
 from .tb_writer import MetricWriter
 from .tracker.tracker import BaseSetting, Tracker
 from .trainer import get_trainable_params
+import logging
 
 
 @dataclass
@@ -32,10 +33,13 @@ def init_params(model, method, *args, **kwargs) -> Tuple[int, int]:
     init_func = m2f[method]
     total = 0
     num_init = 0
-    for param in get_trainable_params(model, named=False):
+    for name, param in get_trainable_params(model, named=True):
         if param.dim() == 2:
             init_func(param, *args, **kwargs)
             num_init += param.numel()
+            logging.info(f'Init: {name} {tuple(param.shape)}')
+        else:
+            logging.info(f'Skipped init: {name} {tuple(param.shape)}')
         total += param.numel()
     return num_init, total
 
