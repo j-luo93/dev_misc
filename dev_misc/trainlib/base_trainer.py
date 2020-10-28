@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from itertools import tee
 from pathlib import Path
 from typing import (Callable, Dict, List, NewType, Optional, Sequence, Tuple,
-                    Union)
+                    Type, Union)
 
 import torch
+import torch.nn as nn
 from torch.nn.init import uniform_, xavier_normal_, xavier_uniform_
 
 from .base_data_loader import BaseDataLoader, BaseDataLoaderRegistry
@@ -15,7 +16,8 @@ from .metrics import Metrics
 from .tb_writer import MetricWriter
 from .tracker.tracker import BaseSetting, Tracker
 from .trainer import get_trainable_params
-import logging
+
+Optimizer = torch.optim.Optimizer
 
 
 @dataclass
@@ -66,7 +68,8 @@ class BaseTrainer(ABC):
         self.tracker.add_settings(settings, setting_weights)
         self.add_trackables()
         self.model = model
-        self.optimizer = None
+        # Multiple optimizers are allowed.
+        self.optimizers: Dict[str, Optimizer] = dict()
         self.lr_scheduler = None
         # IDEA(j_luo) Maybe we should just put all evaluation methods as part of trainer?
         self.evaluator = evaluator
@@ -93,6 +96,13 @@ class BaseTrainer(ABC):
         # IDEA(j_luo) Make global_step and stage a global property?
         self._global_step = 0
 
+    @property
+    def optimizer(self) -> Optimizer:
+        """Return the default optimizer."""
+        if '__DEFAULT__' not in self.optimizers:
+            raise AttributeError(f'No optimizer has been set.')
+        return self.optimizers['__DEFAULT__']
+
     @abstractmethod
     def add_trackables(self, *args, **kwargs):
         """Add all trackables. `self.tracker` should be called here."""
@@ -115,17 +125,26 @@ class BaseTrainer(ABC):
                 else:
                     callback.func()
 
-    def set_optimizer(self, optimizer_cls, **kwargs):
-        params_cp0, params_cp1 = tee(get_trainable_params(self.model, named=False))
-        self.optimizer = optimizer_cls(params_cp0, **kwargs)
+    def set_optimizer(self,
+                      optimizer_cls: Type[Optimizer],
+                      name: Optional[str] = None,
+                      mod: Optional[nn.Module] = None, **kwargs):
+        name = name or '__DEFAULT__'
+        mod = mod or self.model
+        params_cp0, params_cp1 = tee(get_trainable_params(mod, named=False))
+        if name in self.optimizers:
+            logging.warning(f'Resetting the optimizer named "{name}".')
+
+        self.optimizers[name] = optimizer_cls(params_cp0, **kwargs)
         # Count number of params.
         total = sum([p.nelement() for p in params_cp1])
         logging.info(f'{total} trainable parameters will be optimized.')
 
-    def set_lr_scheduler(self, scheduler_cls, **kwargs):
-        if self.optimizer is None:
-            raise RuntimeError(f'No optimizer has been set for lr_scheduler.')
-        self.lr_scheduler = scheduler_cls(self.optimizer, **kwargs)
+    def set_lr_scheduler(self, scheduler_cls,
+                         name: Optional[str] = None,
+                         **kwargs):
+        name = name or '__DEFAULT__'
+        self.lr_scheduler = scheduler_cls(self.optimizers[name], **kwargs)
 
     def init_params(self, method, *args, **kwargs):
         num_init, total = init_params(self.model, method, *args, **kwargs)
