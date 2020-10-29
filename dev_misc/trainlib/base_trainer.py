@@ -22,7 +22,7 @@ Optimizer = torch.optim.Optimizer
 
 @dataclass
 class Callback:
-    interval: int
+    name: str
     func: Callable
 
 
@@ -89,7 +89,7 @@ class BaseTrainer(ABC):
         if self.save_interval:
             self.tracker.add_trackable(save_tname, total=self.save_interval, endless=True)
             self.save_tname = save_tname
-        self._callbacks: Dict[str, List[Callback]] = defaultdict(list)
+        self._callbacks: Dict[str, Dict[str, Callback]] = defaultdict(dict)
 
         self.metric_writer = metric_writer
         # `global_step` is an integer that can be used by the metric writer for writing to tensorboard. It is the number of steps (i.e., number of the batches) that has passed.
@@ -107,23 +107,24 @@ class BaseTrainer(ABC):
     def add_trackables(self, *args, **kwargs):
         """Add all trackables. `self.tracker` should be called here."""
 
-    def add_callback(self, tname: str, interval: int, callback: Callable):
+    def add_callback(self, tname: str, cb_name: str, callback: Callable):
         # IDEA(j_luo) Rewrite check/eval/save functions using this method.
         if not tname in self.tracker:
             raise NameError(f'No trackable named {tname}.')
 
-        self._callbacks[tname].append(Callback(interval, callback))
+        # if cb_name not in self._callbacks[tname]:
+        self._callbacks[tname][cb_name] = Callback(cb_name, callback)
 
     def _update(self, tname: str, metrics: Optional[Metrics] = None):
         """This does two things: call tracker and update a trackable, call registered callbacks."""
         self.tracker.update(tname)
-        for callback in self._callbacks[tname]:
-            if self.tracker[tname].value % callback.interval == 0:
-                # FIXME(j_luo) This looks very hacky. Need a principled way of dealing with arguments for callbacks.
-                if metrics is not None:
-                    callback.func(metrics)
-                else:
-                    callback.func()
+        remaining = dict()
+        for callback in self._callbacks[tname].values():
+            if self.tracker.is_finished(tname):
+                callback.func()
+            else:
+                remaining[callback.name] = callback
+        self._callbacks[tname] = remaining
 
     def set_optimizer(self,
                       optimizer_cls: Type[Optimizer],
