@@ -83,7 +83,7 @@ class BaseTrainer(ABC):
         if self.check_interval:
             self.tracker.add_trackable(check_tname, total=self.check_interval, endless=True)
             self.check_tname = check_tname
-        if self.eval_interval:
+        if self.eval_interval and evaluator is not None:
             self.tracker.add_trackable(eval_tname, total=self.eval_interval, endless=True)
             self.eval_tname = eval_tname
         if self.save_interval:
