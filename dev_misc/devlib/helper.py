@@ -1,4 +1,3 @@
-from typing import Tuple
 import logging
 import os
 import re
@@ -6,12 +5,12 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, fields, is_dataclass
 from functools import partial, update_wrapper, wraps
-from typing import Any, List, Sequence, Type, TypeVar, Union
+from typing import Any, List, Sequence, Tuple, Type, TypeVar, Union
 
 import numpy as np
-
 import torch
 import torch.nn as nn
+
 from dev_misc.trainlib import has_gpus
 
 # import devlib.named_tensor as named_tensor
@@ -29,7 +28,10 @@ def get_tensor(x: Tensorable, cpu=False) -> Tensor:
     elif torch.is_tensor(x):
         tensor = x
     elif isinstance(x, (list, tuple)):
-        tensor = torch.from_numpy(np.asarray(x))
+        dtype = type(x[0])
+        if dtype is float:
+            dtype = np.float32
+        tensor = torch.from_numpy(np.asarray(x, dtype=dtype))
     else:
         raise NotImplementedError(f'Unsupported type {type(x)}.')
     # Check if we need to use cuda.
