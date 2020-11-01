@@ -15,8 +15,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Sequence, Type
 
 from dev_misc.utils import deprecated
 
-from .trackable import (BaseTrackable, CountTrackable, MaxTrackable,
-                        MinTrackable, TrackableRegistry, TrackableUpdater)
+from .trackable import (AnnealTrackable, BaseTrackable, CountTrackable,
+                        MaxTrackable, MinTrackable, TrackableRegistry,
+                        TrackableUpdater)
 
 # setting_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
 
@@ -49,8 +50,8 @@ class Tracker:
     def is_finished(self, *names: str) -> bool:
         return all(self.trackable_reg[name].is_finished for name in names)
 
-    def add_trackable(self, name: str, *, total: int = None, endless: bool = False, agg_func: str = 'count') -> BaseTrackable:
-        trackable = self.trackable_reg.register_trackable(name, total=total, endless=endless, agg_func=agg_func)
+    def add_trackable(self, name: str, **kwargs) -> BaseTrackable:
+        trackable = self.trackable_reg.register_trackable(name, **kwargs)
         return trackable
 
     def clear_trackables(self):
@@ -65,6 +66,10 @@ class Tracker:
 
     def add_count_trackable(self, name: str, total: int) -> CountTrackable:
         return self.add_trackable(name, total=total, agg_func='count')
+
+    def add_anneal_trackable(self, name: str, init_value: float, multiplier: float, bound: float) -> AnnealTrackable:
+        return self.add_trackable(name, init_value=init_value,
+                                  multiplier=multiplier, bound=bound, agg_func='anneal')
 
     def add_setting(self, setting: BaseSetting, weight: float):
         self.settings.append(setting)

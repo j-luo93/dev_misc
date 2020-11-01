@@ -1,7 +1,8 @@
 from unittest import TestCase
 
-from .trackable import (CountTrackable, MaxTrackable, MinTrackable,
-                        PBarOutOfBound, TrackableRegistry, reset_all)
+from .trackable import (AnnealTrackable, CountTrackable, MaxTrackable,
+                        MinTrackable, PBarOutOfBound, TrackableRegistry,
+                        reset_all)
 
 
 class TestCountTrackable(TestCase):
@@ -49,6 +50,32 @@ class TestCountTrackable(TestCase):
         x = CountTrackable('check', endless=True, total=10)
         for i in range(100):
             x.update()
+
+
+class TestAnnealTrackable(TestCase):
+
+    def setUp(self):
+        reset_all()
+
+    def test_update(self):
+        x = AnnealTrackable('temperature', 1.0, 0.9, 0.1)
+        y = AnnealTrackable('factor', 1.0, 1.1, 2.0)
+        for i in range(2):
+            x.update()
+        self.assertEqual(x.value, 0.81)
+
+        for i in range(100):
+            x.update()
+            y.update()
+        self.assertEqual(x.value, 0.1)
+        self.assertEqual(y.value, 2.0)
+
+    def test_reset(self):
+        x = AnnealTrackable('temperature', 1.0, 0.9, 0.1)
+        for i in range(5):
+            x.update()
+        x.reset()
+        self.assertEqual(x.value, 1.0)
 
 
 class TestMaxMinTrackable(TestCase):

@@ -117,6 +117,37 @@ class CountTrackable(BaseTrackable):
             manager.remove(self._pbar)
 
 
+class AnnealTrackable(BaseTrackable):
+
+    def __init__(self, name: str, init_value: float, multiplier: float, bound: float, **kwargs):
+        self._init_value = init_value
+        self._multiplier = multiplier
+        self._bound = bound
+        # Only add a pbar in main process. Otherwise use a simpler counter.
+        if is_main_process_and_thread():
+            self._status_bar = manager.status_bar(status_format=f'Anneal: {name} ' + '{value:.5f}', value=init_value)
+        super().__init__(name, **kwargs)
+
+    @property
+    def value(self):
+        return self._value
+
+    def reset(self):
+        self._value = self._init_value
+
+    def update(self):
+        new_value = self._multiplier * self._value
+        if self._multiplier >= 1.0:
+            self._value = min(new_value, self._bound)
+        else:
+            self._value = max(new_value, self._bound)
+        self._status_bar.update(value=self._value)
+
+    def close(self):
+        if is_main_process_and_thread():
+            manager.remove(self._status_bar)
+
+
 class MaxTrackable(BaseTrackable):
 
     @property
@@ -177,7 +208,14 @@ class TrackableRegistry:
     def items(self) -> Iterator[Tuple[str, BaseTrackable]]:
         yield from self._trackables.items()
 
-    def register_trackable(self, name: str, *, total: int = None, endless: bool = False, parent: BaseTrackable = None, agg_func: str = 'count') -> BaseTrackable:
+    def register_trackable(self, name: str, *,
+                           total: int = None,
+                           endless: bool = False,
+                           init_value: float = None,
+                           multiplier: float = None,
+                           bound: float = None,
+                           parent: BaseTrackable = None,
+                           agg_func: str = 'count') -> BaseTrackable:
         """
         If `parent` is set, then this trackable will be reset whenever the parent is updated.
         """
@@ -190,6 +228,8 @@ class TrackableRegistry:
             trackable = MaxTrackable(name, parent=parent, registry=self)
         elif agg_func == 'min':
             trackable = MinTrackable(name, parent=parent, registry=self)
+        elif agg_func == 'anneal':
+            trackable = AnnealTrackable(name, init_value, multiplier, bound, parent=parent, registry=self)
         else:
             raise ValueError(f'Unrecognized aggregate function {agg_func}.')
         self._trackables[name] = trackable
