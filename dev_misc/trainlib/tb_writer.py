@@ -5,7 +5,7 @@ from typing import Union
 
 from torch.utils.tensorboard import SummaryWriter
 
-from dev_misc.trainlib import Metric, Metrics
+from dev_misc.trainlib.metrics import Metric, Metrics
 
 
 class MetricWriter(SummaryWriter):
