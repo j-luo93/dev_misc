@@ -283,3 +283,7 @@ class ScopedCache:
 
 def is_main_process_and_thread() -> bool:
     return current_process().name == 'MainProcess' and current_thread() is main_thread()
+
+
+def pad_for_log(output: str, num_paddings: int = 8):
+    return ('\n' + output).replace('\n', '\n' + ' ' * num_paddings)

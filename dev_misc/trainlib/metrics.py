@@ -8,6 +8,8 @@ import torch
 from prettytable import PrettyTable as pt
 from typing_extensions import Protocol
 
+from dev_misc.utils import pad_for_log
+
 # TODO(j_luo) Rename this to Stats maybe?
 # TODO(j_luo) Add tests
 
@@ -194,7 +196,7 @@ class Metrics:
         if num_paddings == 0:
             return t
 
-        ret = ('\n' + str(t)).replace('\n', '\n' + ' ' * num_paddings)
+        ret = pad_for_log(str(t), num_paddings=num_paddings)
         return ret
 
     def clear(self):
