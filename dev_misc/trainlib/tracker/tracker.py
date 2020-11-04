@@ -97,14 +97,14 @@ class Tracker:
     def __contains__(self, name: str) -> bool:
         return name in self.trackable_reg
 
-    def update(self, name: str, *, value: Optional[Any] = None, threshold: Optional[float] = None) -> bool:
+    def update(self, name: str, **kwargs) -> bool:
         """
         Update a trackable, and return whether it is updated. If `threshold` is provided, even if the trackable is updated,
         return False when it has not reached the threshold.
         """
         trackable = self.trackable_reg[name]
         updater = TrackableUpdater(trackable)
-        return updater.update(value=value, threshold=threshold)
+        return updater.update(**kwargs)
 
     def reset(self, *names: str):
         """Reset trackable(s) specified by name(s)."""

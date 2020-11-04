@@ -70,16 +70,18 @@ class CountTrackable(BaseTrackable):
     def total(self):
         return self._total
 
-    def update(self) -> bool:
+    def update(self, incr: int = None) -> bool:
+        incr = incr or 1
+
         if self.value == self.total and self._endless:
             self.reset()
 
         while True:
             try:
                 if is_main_process_and_thread():
-                    self._pbar.update()
+                    self._pbar.update(incr=incr)
                 else:
-                    self._count += 1
+                    self._count += incr
                 break
             except RuntimeError:
                 logging.exception('Encountered some issue when updating the progress bar. Waiting to retry again')
@@ -257,8 +259,14 @@ class TrackableUpdater:
     def __init__(self, trackable: BaseTrackable):
         self._trackable = trackable
 
-    def update(self, *, value: Optional[Any] = None, threshold: Optional[float] = None):
+    def update(self, *,
+               value: Optional[Any] = None,
+               threshold: Optional[float] = None,
+               incr: Optional[int] = None):
         try:
-            return self._trackable.update()
+            return self._trackable.update(incr=incr)
         except TypeError:
-            return self._trackable.update(value, threshold=threshold)
+            try:
+                return self._trackable.update(value, threshold=threshold)
+            except:
+                return self._trackable.update()
