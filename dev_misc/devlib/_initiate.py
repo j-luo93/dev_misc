@@ -1,6 +1,8 @@
+import logging
 import os
 import random
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +48,7 @@ class Initiator:
     def __init__(self, *registries: Registry,
                  logger=False, log_dir=False, log_level=False,
                  gpus=False, random_seed=False, commit_id=False,
+                 command=False,
                  stacklevel=1):
         """
         This function does a few things.
@@ -79,6 +82,7 @@ class Initiator:
         self.logger = logger
         self.random_seed = random_seed
         self.gpus = gpus
+        self.command = command
 
     def run(self, saved_g_path: Optional[str] = None):
         # Use saved g values if provided.
@@ -124,7 +128,7 @@ class Initiator:
                         break
 
         # Create a logger.
-        if self.logger:# and not saved_g_path:  # Skip this if loading from g.
+        if self.logger:  # and not saved_g_path:  # Skip this if loading from g.
             file_path = Path(g.log_dir) / 'log' if self.log_dir else None
             log_level = g.log_level if self.log_level else 'INFO'
             create_logger(file_path=file_path, log_level=log_level)
@@ -132,6 +136,11 @@ class Initiator:
         # Set random seed.
         if self.random_seed:
             set_random_seeds(g.random_seed)
+
+        # Record the running command.
+        if self.command:
+            cmd = ' '.join([sys.executable] + sys.argv)
+            logging.info(f'Running command: {cmd}')
 
         save_to = g.log_dir / 'hparams.pth' if self.log_dir and not saved_g_path else None
         show_args(save_to=save_to)
