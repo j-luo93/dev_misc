@@ -15,9 +15,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Sequence, Type
 
 from dev_misc.utils import deprecated
 
-from .trackable import (AnnealTrackable, BaseTrackable, CountTrackable,
-                        MaxTrackable, MinTrackable, TrackableRegistry,
-                        TrackableUpdater)
+from .trackable import (AnnealTrackable, BaseTrackable, CanAddTrackable,
+                        CountTrackable, MaxTrackable, MinTrackable,
+                        TrackableRegistry, TrackableUpdater)
 
 # setting_class: Type[dataclass] = update_wrapper(partial(dataclass, eq=False), dataclass)
 
@@ -38,38 +38,19 @@ class BaseSetting:
         return self.name == other.name
 
 
-class Tracker:
+class Tracker(CanAddTrackable):
 
     def __init__(self):
+        super().__init__()
         self.settings: List[BaseSetting] = list()
         self.setting_weights: List[BaseSetting] = list()
 
-        # A centralized registry for all trackables.
-        self.trackable_reg = TrackableRegistry()
-
     def is_finished(self, *names: str) -> bool:
-        return all(self.trackable_reg[name].is_finished for name in names)
-
-    def add_trackable(self, name: str, **kwargs) -> BaseTrackable:
-        trackable = self.trackable_reg.register_trackable(name, **kwargs)
-        return trackable
+        return all(self.registry[name].is_finished for name in names)
 
     def clear_trackables(self):
         """Clear all trackables. This should be called when training is done."""
-        self.trackable_reg.clear_trackables()
-
-    def add_max_trackable(self, name: str) -> MaxTrackable:
-        return self.add_trackable(name, agg_func='max')
-
-    def add_min_trackable(self, name: str) -> MinTrackable:
-        return self.add_trackable(name, agg_func='min')
-
-    def add_count_trackable(self, name: str, total: int) -> CountTrackable:
-        return self.add_trackable(name, total=total, agg_func='count')
-
-    def add_anneal_trackable(self, name: str, init_value: float, multiplier: float, bound: float) -> AnnealTrackable:
-        return self.add_trackable(name, init_value=init_value,
-                                  multiplier=multiplier, bound=bound, agg_func='anneal')
+        self.registry.clear_trackables()
 
     def add_setting(self, setting: BaseSetting, weight: float):
         self.settings.append(setting)
@@ -87,32 +68,32 @@ class Tracker:
 
     def __getattr__(self, attr: str):
         try:
-            return self.trackable_reg[attr].value
+            return self.registry[attr].value
         except KeyError:
             raise AttributeError(f'No trackable named {attr}.')
 
     def __getitem__(self, name: str) -> BaseTrackable:
-        return self.trackable_reg[name]
+        return self.registry[name]
 
     def __contains__(self, name: str) -> bool:
-        return name in self.trackable_reg
+        return name in self.registry
 
     def update(self, name: str, **kwargs) -> bool:
         """
         Update a trackable, and return whether it is updated. If `threshold` is provided, even if the trackable is updated,
         return False when it has not reached the threshold.
         """
-        trackable = self.trackable_reg[name]
+        trackable = self.registry[name]
         updater = TrackableUpdater(trackable)
         return updater.update(**kwargs)
 
     def reset(self, *names: str):
         """Reset trackable(s) specified by name(s)."""
         for name in names:
-            trackable = self.trackable_reg[name]
+            trackable = self.registry[name]
             trackable.reset()
 
     def reset_all(self):
         """Reset all trackables."""
-        for name, trackable in self.trackable_reg.items():
+        for name, trackable in self.registry.items():
             trackable.reset()

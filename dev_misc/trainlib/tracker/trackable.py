@@ -13,11 +13,35 @@ class PBarOutOfBound(Exception):
     pass
 
 
-class BaseTrackable(ABC):
-    # IDEA(j_luo) Trackable and Tracker classes can add_trackable and put it in a registry. Maybe we can abstract some class out of it.
+class CanAddTrackable:
+    """Base class that supports basic operations for adding trackables."""
+
+    def __init__(self, registry: Optional[TrackableRegistry] = None):
+        self.registry = registry if registry is not None else TrackableRegistry()
+
+    def add_trackable(self, name: str, **kwargs) -> BaseTrackable:
+        trackable = self.registry.register_trackable(name, **kwargs)
+        return trackable
+
+    def add_max_trackable(self, name: str) -> MaxTrackable:
+        return self.add_trackable(name, agg_func='max')
+
+    def add_min_trackable(self, name: str) -> MinTrackable:
+        return self.add_trackable(name, agg_func='min')
+
+    def add_count_trackable(self, name: str, total: int) -> CountTrackable:
+        return self.add_trackable(name, total=total, agg_func='count')
+
+    def add_anneal_trackable(self, name: str, init_value: float, multiplier: float, bound: float) -> AnnealTrackable:
+        return self.add_trackable(name, init_value=init_value,
+                                  multiplier=multiplier, bound=bound, agg_func='anneal')
+
+
+class BaseTrackable(ABC, CanAddTrackable):
     # IDEA(j_luo) Maybe merge sth with Metric?
 
     def __init__(self, name: str, *, parent: Optional[BaseTrackable] = None, registry: Optional[TrackableRegistry] = None):
+        super().__init__(registry)
         self._name = name
 
         self.children: List[BaseTrackable] = list()
@@ -25,12 +49,14 @@ class BaseTrackable(ABC):
             # NOTE(j_luo) Every child here would be reset after the parent is updated.
             parent.children.append(self)
 
-        self.registry = registry if registry is not None else TrackableRegistry()
-
         self.reset()
 
     def __str__(self):
         return f'{self.name}: {self.value}'
+
+    def add_trackable(self, name: str, **kwargs) -> BaseTrackable:
+        trackable = super().add_trackable(name, parent=self, **kwargs)
+        return trackable
 
     @property
     def name(self):
@@ -48,10 +74,6 @@ class BaseTrackable(ABC):
     @abstractmethod
     def update(self) -> bool:
         """Update this object and return whether the value is updated."""
-
-    def add_trackable(self, name: str, *, total: int = None) -> BaseTrackable:
-        trackable = self.registry.register_trackable(name, total=total, parent=self)
-        return trackable
 
 
 class CountTrackable(BaseTrackable):
