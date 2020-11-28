@@ -4,14 +4,16 @@ import inspect
 import logging
 import sys
 import warnings
+from dataclasses import dataclass
 from functools import lru_cache, reduce, wraps
 from multiprocessing import current_process
 from operator import iadd, ior
 from threading import current_thread, main_thread
-from typing import (Callable, ClassVar, Dict, Iterable, Iterator, List,
-                    Mapping, Optional)
+from typing import (Any, Callable, ClassVar, Dict, Iterable, Iterator, List,
+                    Mapping, Optional, Tuple, Type, Union)
 
 import enlighten
+import pandas as pd
 
 
 def check_explicit_arg(*values):
@@ -287,3 +289,38 @@ def is_main_process_and_thread() -> bool:
 
 def pad_for_log(output: str, num_paddings: int = 8):
     return ('\n' + output).replace('\n', '\n' + ' ' * num_paddings)
+
+
+@dataclass
+class ErrorRecord:
+    etype: Type[BaseException]
+    item: Any
+    idx: int
+
+
+def recorded_try(df: pd.DataFrame, col_name: str, func, error_types: Optional[Union[BaseException, Tuple[BaseException, ...]]] = None,
+                 errors: Optional[List[ErrorRecord]] = None):
+    """Try to run `func` on all items in the `col_name` column of `df`, while recording every error specified `error_types`, which
+    defaults to `AssertionError`. If `errors` is passed, this would modify it in-place, for diagnostic purposes."""
+    series = df[col_name]
+    return recorded_try_series(series, func, error_types=error_types, errors=errors)
+
+
+def recorded_try_series(series: pd.Series, func, error_types: Optional[Union[BaseException, Tuple[BaseException, ...]]] = None,
+                        errors: Optional[List[ErrorRecord]] = None):
+    """Similar to `recorded_try`, but on `series`."""
+    error_types = error_types or AssertionError
+    new_col = list()
+    errors = errors if errors is not None else list()
+    for i, item in enumerate(series):
+        try:
+            ret = func(item)
+        except BaseException as e:
+            if isinstance(e, error_types):
+                errors.append(ErrorRecord(type(e), item, i))
+                ret = None
+            else:
+                raise e
+        new_col.append(ret)
+    print(f'{len(errors)}/{len(series)} errors are recorded.')
+    return new_col
