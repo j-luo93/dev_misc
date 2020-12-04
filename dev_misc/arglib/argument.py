@@ -52,7 +52,7 @@ class Argument:
             raise TypeError(f'Expect choices to be a list, tuple or set, but got {type(choices)}.')
 
         # Clean up name.
-        name = name.strip('-').strip('_')
+        name = name.strip('--').strip('_')
         if name.startswith('no_'):
             raise NameFormatError(f'Cannot have names starting with "no_", but got "f{name}".')
 

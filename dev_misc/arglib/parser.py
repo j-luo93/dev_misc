@@ -323,7 +323,7 @@ class _Repository:
         arg_groups = list()
         group = list()
         for seg in sys.argv[1:]:
-            if seg.startswith('-'):
+            if seg.startswith('--'):
                 if group:
                     arg_groups.append(group)
                 group = seg.split('=')
@@ -335,7 +335,7 @@ class _Repository:
         parsed = list()
         for group in arg_groups:
             name, *values = group
-            name = name.strip('-')
+            name = name.strip('--')
             # NOTE(j_luo) Help mode. Note that if known_only is True, then help is ignored.
             if name == 'h' or name == 'help':
                 if not known_only:
