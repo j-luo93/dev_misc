@@ -153,6 +153,7 @@ class BaseTrainer(ABC):
 
     def train(self, dl_reg: BaseDataLoaderRegistry):
         metrics = Metrics()
+        self.try_evaluate_at_start()
         while not self.tracker.is_finished(*self.stage_tnames):
             setting = self.tracker.draw_setting()
             dl = dl_reg[setting]
@@ -166,11 +167,18 @@ class BaseTrainer(ABC):
             eval_metrics = self.try_evaluate()
             self.try_save(eval_metrics)
 
-            if self.should_terminate():
+            if self.should_terminate(eval_metrics=eval_metrics):
                 break
         self.tracker.clear_trackables()
 
-    def should_terminate(self) -> bool:
+    def try_evaluate_at_start(self):
+        if self.evaluator is not None:
+            self.evaluate_at_start()
+
+    def evaluate_at_start(self):
+        pass
+
+    def should_terminate(self, eval_metrics: Optional[Metrics] = None) -> bool:
         """Return whether the training loop should be terminated or not."""
         return False
 
