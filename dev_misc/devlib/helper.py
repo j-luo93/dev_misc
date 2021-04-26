@@ -5,10 +5,11 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, fields, is_dataclass
 from functools import partial, update_wrapper, wraps
-from typing import Any, List, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 import numpy as np
 import torch
+from torch._C import Value
 import torch.nn as nn
 
 from dev_misc.trainlib import has_gpus
@@ -62,13 +63,18 @@ def get_range(size: int, ndim: int, dim: int, cpu: bool = False):
     return get_tensor(torch.arange(size).long().reshape(*shape), cpu=cpu)
 
 
-def pad_to_dense(a: List[np.ndarray], dtype=np.float32, pad_idx: int = 0) -> Tuple[np.ndarray, np.ndarray]:
+def pad_to_dense(a: List[np.ndarray], dtype=np.float32, pad_idx: int = 0, use_3d: bool = False, length_3d: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
     '''
     Modified from https://stackoverflow.com/questions/37676539/numpy-padding-matrix-of-different-row-size.
     Return the sequences and paddings.
     '''
     maxlen = max(map(len, a))
-    seqs = np.zeros((len(a), maxlen), dtype=dtype)
+    if use_3d:
+        if length_3d is None:
+            raise ValueError(f'Must pass `length_3d` if `use_3d` is `True`')
+        seqs = np.zeros((len(a), maxlen, length_3d), dtype=dtype)
+    else:
+        seqs = np.zeros((len(a), maxlen), dtype=dtype)
     if pad_idx != 0:
         seqs.fill(pad_idx)
     paddings = np.zeros((len(a), maxlen), dtype=np.bool)
